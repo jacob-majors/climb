@@ -1,8 +1,6 @@
-import Link from "next/link";
-import { duplicatePlanAction } from "@/app/actions";
 import { SectionHeading } from "@/components/section-heading";
 import { Card } from "@/components/ui/card";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { SavedPlanCard } from "@/components/saved-plan-card";
 import { formatDate } from "@/lib/format";
 import { getActiveAthlete } from "@/lib/data";
 import { getOrCreateDbUser } from "@/lib/auth";
@@ -24,26 +22,16 @@ export default async function SavedPlansPage() {
       {athlete?.trainingPlans.length ? (
         <div className="grid gap-4">
           {athlete.trainingPlans.map((plan) => (
-            <Card key={plan.id} className="space-y-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold text-ink">{plan.title}</h3>
-                  <p className="mt-2 text-sm text-ink/65">
-                    {formatDate(plan.startDate)} - {formatDate(plan.endDate)} • load {plan.totalLoadScore}
-                  </p>
-                  <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/70">{plan.summary}</p>
-                </div>
-                <div className="flex gap-3">
-                  <Link href={`/plans/${plan.id}`} className="rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold text-ink">
-                    Open
-                  </Link>
-                  <form action={duplicatePlanAction}>
-                    <input type="hidden" name="planId" value={plan.id} />
-                    <SubmitButton label="Duplicate week" pendingLabel="Duplicating..." className="bg-pine hover:bg-ink" />
-                  </form>
-                </div>
-              </div>
-            </Card>
+            <SavedPlanCard
+              key={plan.id}
+              plan={{
+                id: plan.id,
+                title: plan.title,
+                dateRangeLabel: `${formatDate(plan.startDate)} - ${formatDate(plan.endDate)}`,
+                summary: plan.summary,
+                totalLoadScore: plan.totalLoadScore,
+              }}
+            />
           ))}
         </div>
       ) : (

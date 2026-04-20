@@ -538,6 +538,32 @@ export async function duplicatePlanAction(formData: FormData) {
   redirect(`/plans/${duplicated.id}`);
 }
 
+export async function deletePlanAction(formData: FormData) {
+  const userId = await getOrCreateDbUser();
+  if (!userId) redirect("/sign-in");
+
+  const planId = text(formData, "planId");
+  if (!planId) redirect("/plans");
+
+  const existing = await prisma.trainingPlan.findUnique({
+    where: { id: planId },
+    select: { id: true, userId: true },
+  });
+
+  if (!existing || existing.userId !== userId) {
+    redirect("/plans");
+  }
+
+  await prisma.trainingPlan.delete({
+    where: { id: planId },
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/plans");
+  revalidatePath(`/plans/${planId}`);
+  redirect("/plans");
+}
+
 export async function createSamplePlanAction() {
   await generatePlanAction(new FormData());
 }
