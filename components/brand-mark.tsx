@@ -51,38 +51,18 @@ export function BrandGlyph({ className }: BrandGlyphProps) {
 }
 
 export function BrandMark({ href = "/dashboard", compact = false }: BrandMarkProps) {
-  const wordmark = compact ? (
-    <div className="flex items-center gap-2">
-      <BrandGlyph className="h-9 w-9" />
-      <div className="flex items-end">
-        <span className="text-[1.02rem] font-black lowercase leading-none tracking-[0.12em] text-ink">climb</span>
-        <span aria-hidden="true" className="-ml-[0.08em] text-[1.32rem] font-black leading-none text-clay">
-          .
-        </span>
-      </div>
-    </div>
-  ) : (
-    <div className="flex items-center gap-3">
-      <BrandGlyph className="h-11 w-11" />
-      <div className="flex items-end">
-        <span className="text-[1.24rem] font-black lowercase leading-none tracking-[0.14em] text-ink">climb</span>
-        <span
-          aria-hidden="true"
-          className="-ml-[0.08em] text-[1.68rem] font-black leading-none text-clay transition-transform duration-200 group-hover:translate-y-[1px]"
-        >
-          .
-        </span>
-      </div>
-    </div>
-  );
-
   return (
     <Link
       href={href}
       aria-label="climb."
-      className="group inline-flex items-center rounded-full border border-ink/12 bg-chalk/95 px-3 py-2 shadow-[0_10px_28px_rgba(15,36,32,0.12)] backdrop-blur transition hover:-translate-y-0.5 hover:border-clay/40 hover:shadow-[0_16px_36px_rgba(15,36,32,0.16)]"
+      className="group inline-flex items-center rounded-full border border-ink/12 bg-chalk/95 px-4 py-2 shadow-[0_10px_28px_rgba(15,36,32,0.12)] backdrop-blur transition hover:-translate-y-0.5 hover:border-clay/40"
     >
-      {wordmark}
+      <span className={clsx(
+        "font-black lowercase leading-none tracking-tight text-ink",
+        compact ? "text-[0.95rem]" : "text-[1.1rem]",
+      )}>
+        climb<span className="text-clay" style={{ letterSpacing: "-0.02em" }}>.</span>
+      </span>
     </Link>
   );
 }

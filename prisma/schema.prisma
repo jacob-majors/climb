@@ -156,6 +156,8 @@ model RouteEntry {
   feltWeak          String
   pumpLevel         Int
   confidenceLevel   Int
+  wallAngle         String?
+  wallHeight        String?
   freeText          String?
   weaknessSummary   String?
   createdAt         DateTime    @default(now())

@@ -204,6 +204,8 @@ export async function saveRouteEntryAction(formData: FormData) {
       confidenceLevel: intValue(formData, "confidenceLevel", 5),
       freeText: text(formData, "freeText") || null,
       weaknessSummary: text(formData, "weaknessSummary") || null,
+      wallAngle: text(formData, "wallAngle") || null,
+      wallHeight: text(formData, "wallHeight") || null,
     },
   });
 

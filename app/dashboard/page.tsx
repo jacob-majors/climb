@@ -23,9 +23,15 @@ import { getActiveAthlete } from "@/lib/data";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { dayNames, formatDate, formatSessionType, intensityClass, intensityLabel } from "@/lib/format";
-import { buildAdherenceSummary, getSessionDate, getUpcomingSession, nextOccurrenceOfDay } from "@/lib/plan-progress";
+import { buildAdherenceSummary, getSessionDate, getSessionEntry, getUpcomingSession, nextOccurrenceOfDay } from "@/lib/plan-progress";
 import { getRecoveryBand, recoveryClass, recoveryLabel } from "@/lib/recovery";
 import { findAvailabilityForDay, formatTrainingWindow } from "@/lib/training-availability";
+import {
+  calculateSessionStrain,
+  calculateSessionTryHard,
+  strainLabel,
+  tryHardLabel,
+} from "@/lib/session-metrics";
 
 type Athlete = NonNullable<Awaited<ReturnType<typeof getActiveAthlete>>>;
 type TrainingPlan = Athlete["trainingPlans"][number];
@@ -283,6 +289,50 @@ function upcomingAppearance(type: UpcomingItem["type"]) {
   }
 }
 
+function selectCurrentWeekPlan(plans: Athlete["trainingPlans"]) {
+  if (!plans.length) return undefined;
+
+  const today = startOfDay(new Date()).getTime();
+  const activePlan = plans.find((plan) => {
+    const start = startOfDay(plan.startDate).getTime();
+    const end = startOfDay(plan.endDate).getTime();
+    return today >= start && today <= end;
+  });
+
+  if (activePlan) return activePlan;
+
+  const upcomingPlan = [...plans]
+    .filter((plan) => startOfDay(plan.startDate).getTime() >= today)
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())[0];
+
+  return upcomingPlan ?? plans[0];
+}
+
+function completionBadge(status: Athlete["trainingPlans"][number]["sessions"][number]["completionStatus"]) {
+  switch (status) {
+    case "COMPLETED":
+      return {
+        label: "Done",
+        className: "border-moss/30 bg-moss/10 text-pine",
+      };
+    case "MODIFIED":
+      return {
+        label: "Adjusted",
+        className: "border-sandstone/45 bg-sandstone/25 text-clay",
+      };
+    case "SKIPPED":
+      return {
+        label: "Skipped",
+        className: "border-clay/20 bg-clay/10 text-clay",
+      };
+    default:
+      return {
+        label: "Planned",
+        className: "border-ink/10 bg-ink/5 text-ink/60",
+      };
+  }
+}
+
 export default async function DashboardPage() {
   let userId: string | null = null;
   try {
@@ -309,23 +359,32 @@ export default async function DashboardPage() {
 
   const schedule = athlete.scheduleConstraint;
   const recovery = getRecoveryBand(schedule);
-  const latestPlan = athlete.trainingPlans[0];
-  const sessionEntry = getUpcomingSession(latestPlan, schedule.trainingAvailability);
+  const currentPlan = selectCurrentWeekPlan(athlete.trainingPlans);
+  const sessionEntry = getUpcomingSession(currentPlan, schedule.trainingAvailability);
   const nextComp = athlete.competitionEvents[0] ?? null;
   const daysUntilComp = nextComp ? daysToCompetition(nextComp.eventDate) : null;
-  const focusAreas = parseFocusAreas(latestPlan?.keyFocusAreas);
-  const adherenceSummary = buildAdherenceSummary(latestPlan, schedule.trainingAvailability);
+  const focusAreas = parseFocusAreas(currentPlan?.keyFocusAreas);
+  const adherenceSummary = buildAdherenceSummary(currentPlan, schedule.trainingAvailability);
   const compPrepSummary =
-    latestPlan?.compPrepNotes ||
-    latestPlan?.pushBackoffNotes ||
-    latestPlan?.recoveryNotes ||
-    latestPlan?.explanation ||
+    currentPlan?.compPrepNotes ||
+    currentPlan?.pushBackoffNotes ||
+    currentPlan?.recoveryNotes ||
+    currentPlan?.explanation ||
     null;
   const upcomingItems = buildUpcomingItems({
-    latestPlan,
+    latestPlan: currentPlan,
     schedule,
     competitions: athlete.competitionEvents,
   });
+  const weekSessions =
+    currentPlan?.sessions.map((session) => {
+      const entry = getSessionEntry(session, currentPlan.startDate, schedule.trainingAvailability);
+      return {
+        ...entry,
+        strain: calculateSessionStrain(session),
+        tryHard: calculateSessionTryHard(session),
+      };
+    }) ?? [];
   const hasDueSessions = Boolean(adherenceSummary?.dueSessionCount);
   const progressHeadline =
     adherenceSummary && !hasDueSessions && sessionEntry ? `First checkmark: ${sessionEntry.session.title}` : adherenceSummary?.headline;
@@ -706,12 +765,12 @@ export default async function DashboardPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {latestPlan ? (
-                <Link
-                  href={`/plans/${latestPlan.id}`}
-                  className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink/90"
-                >
-                  Open full plan
+                  {currentPlan ? (
+                    <Link
+                      href={`/plans/${currentPlan.id}`}
+                      className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink/90"
+                    >
+                      Open full plan
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               ) : null}
@@ -785,9 +844,9 @@ export default async function DashboardPage() {
 
           <Card className="space-y-4">
             <SectionHeading
-              eyebrow="Plan Notes"
-              title="This week"
-              description={latestPlan?.summary ?? "No weekly plan has been generated yet."}
+              eyebrow="Your Week"
+              title={currentPlan ? `Week of ${formatDate(currentPlan.startDate)}` : "No current week yet"}
+              description={currentPlan?.summary ?? "Generate a weekly plan to see your session-by-session week here."}
             />
 
             {focusAreas.length ? (
@@ -800,12 +859,107 @@ export default async function DashboardPage() {
               </div>
             ) : null}
 
-            {latestPlan?.mainWeakness ? (
+            {currentPlan?.mainWeakness ? (
               <div className="rounded-2xl bg-mist p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Main weakness</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{latestPlan.mainWeakness}</p>
+                <p className="mt-2 text-sm leading-6 text-ink">{currentPlan.mainWeakness}</p>
               </div>
             ) : null}
+
+            {weekSessions.length ? (
+              <div className="space-y-3">
+                {weekSessions.map((item) => {
+                  const status = completionBadge(item.session.completionStatus);
+                  const isPrimarySession = sessionEntry?.session.id === item.session.id;
+                  const windowOrDuration = item.windowLabel || (item.session.durationMinutes > 0 ? `${item.session.durationMinutes} min` : "Recovery day");
+
+                  return (
+                    <details
+                      key={item.session.id}
+                      open={isPrimarySession}
+                      className="group overflow-hidden rounded-2xl border border-ink/10 bg-mist/45 open:border-pine/20 open:bg-white"
+                    >
+                      <summary className="list-none cursor-pointer p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">
+                              {item.session.dayLabel} • {formatDate(item.date)}
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-ink">{item.session.title}</p>
+                            <p className="mt-1 text-xs leading-5 text-ink/60">
+                              {formatSessionType(item.session.sessionType)} • {windowOrDuration}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                            {isPrimarySession ? (
+                              <span className="rounded-full border border-pine/20 bg-pine/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">
+                                Next
+                              </span>
+                            ) : null}
+                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${status.className}`}>
+                              {status.label}
+                            </span>
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${intensityClass(item.session.intensity)}`}>
+                              {intensityLabel(item.session.intensity)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <div className="rounded-2xl bg-white/80 p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Duration</p>
+                            <p className="mt-1.5 text-base font-semibold text-ink">{item.session.durationMinutes}m</p>
+                          </div>
+                          <div className="rounded-2xl bg-white/80 p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Load</p>
+                            <p className="mt-1.5 text-base font-semibold text-ink">{item.session.loadScore}</p>
+                          </div>
+                          <div className="rounded-2xl bg-white/80 p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Strain</p>
+                            <p className="mt-1.5 text-base font-semibold text-ink">{item.strain}</p>
+                            <p className="text-[11px] text-ink/55">{strainLabel(item.strain)}</p>
+                          </div>
+                          <div className="rounded-2xl bg-white/80 p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Try-Hard</p>
+                            <p className="mt-1.5 text-base font-semibold text-ink">{item.tryHard}/10</p>
+                            <p className="text-[11px] text-ink/55">{tryHardLabel(item.tryHard)}</p>
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="grid gap-3 border-t border-ink/8 p-4">
+                        <div className="rounded-2xl bg-mist p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Why this day</p>
+                          <p className="mt-2 text-sm leading-6 text-ink">{item.session.whyChosen}</p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="rounded-2xl bg-mist p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Warm-up</p>
+                            <p className="mt-2 text-sm leading-6 text-ink">{item.session.warmup}</p>
+                          </div>
+                          <div className="rounded-2xl bg-mist p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Cool-down</p>
+                            <p className="mt-2 text-sm leading-6 text-ink">{item.session.cooldown}</p>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-mist p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Main work</p>
+                          <p className="mt-2 text-sm leading-6 text-ink">{item.session.mainWork}</p>
+                        </div>
+                        <div className="rounded-2xl bg-mist p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Recovery note</p>
+                          <p className="mt-2 text-sm leading-6 text-ink">{item.session.recoveryNotes}</p>
+                        </div>
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-ink/10 p-4 text-sm text-ink/55">
+                No sessions are in the current week yet.
+              </div>
+            )}
 
             <div className="rounded-2xl bg-mist p-4">
               <div className="flex items-start gap-3">
@@ -836,8 +990,8 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {latestPlan ? (
-        <LoadChart sessions={latestPlan.sessions.map((session) => ({ dayLabel: session.dayLabel, loadScore: session.loadScore }))} />
+      {currentPlan ? (
+        <LoadChart sessions={currentPlan.sessions.map((session) => ({ dayLabel: session.dayLabel, loadScore: session.loadScore }))} />
       ) : null}
     </div>
   );
