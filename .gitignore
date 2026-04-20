@@ -4,8 +4,9 @@ dist
 .DS_Store
 *.log
 .env
-dev.db
-dev.db-journal
+*.db
+*.db-journal
+tsconfig.tsbuildinfo
 coverage
 
 # clerk configuration (can include secrets)
