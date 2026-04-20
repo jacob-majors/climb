@@ -2,6 +2,7 @@ import { dayNames } from "@/lib/format";
 
 export type CalendarEntryType = "practice" | "work" | "school" | "competition" | "travel" | "recovery" | "life" | "climbing";
 export type CalendarLoad = "low" | "moderate" | "high";
+export type CalendarEntrySource = "ics" | "google" | "manual";
 
 export type CalendarEntry = {
   day: string;
@@ -10,7 +11,7 @@ export type CalendarEntry = {
   load: CalendarLoad;
   time?: string;
   notes?: string;
-  source?: "ics" | "manual"; // "ics" = synced from calendar, "manual" = added by hand
+  source?: CalendarEntrySource; // external sources are synced, manual is user-authored
 };
 
 const normalizedDayMap = dayNames.reduce<Record<string, string>>((acc, day) => {

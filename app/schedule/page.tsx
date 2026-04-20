@@ -1,15 +1,57 @@
-import { refreshCalendarAction, saveScheduleAction } from "@/app/actions";
+import Link from "next/link";
+import { refreshCalendarAction, syncGoogleCalendarAction } from "@/app/actions";
 import { parseWeeklyCalendar } from "@/lib/calendar";
 import { CalendarLinkManager } from "@/components/calendar-link-manager";
 import { ScheduleEditor } from "@/components/schedule-editor";
-import { Field, inputClassName } from "@/components/forms";
 import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { getActiveAthlete } from "@/lib/data";
+import { getCurrentGoogleAccessToken } from "@/lib/google-calendar";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { toDateInputValue } from "@/lib/format";
 import { parseTrainingAvailability } from "@/lib/training-availability";
+
+type SchedulePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function scheduleStatusMessage(error?: string, success?: string) {
+  if (success === "google-calendar-synced") {
+    return {
+      tone: "green",
+      title: "Google Calendar synced",
+      description: "Your Google events were pulled into the weekly schedule and will now shape availability and training load.",
+    };
+  }
+
+  switch (error) {
+    case "calendar-import":
+      return {
+        tone: "clay",
+        title: "ICS import failed",
+        description: "One of the calendar links could not be read. Check the link and try again.",
+      };
+    case "no-calendar-url":
+      return {
+        tone: "amber",
+        title: "No ICS link saved",
+        description: "Add a calendar link first, then use sync.",
+      };
+    case "google-calendar-sync":
+      return {
+        tone: "clay",
+        title: "Google Calendar sync failed",
+        description: "Google responded unexpectedly. Try again in a minute, then reconnect Google if it keeps failing.",
+      };
+    default:
+      return null;
+  }
+}
 
 function availabilityValue(raw: string | null | undefined, day: string, fallback: number) {
   if (!raw) return fallback;
@@ -17,11 +59,14 @@ function availabilityValue(raw: string | null | undefined, day: string, fallback
   catch { return fallback; }
 }
 
-export default async function SchedulePage() {
+export default async function SchedulePage({ searchParams }: SchedulePageProps) {
   const userId = await getOrCreateDbUser();
   if (!userId) redirect("/sign-in");
   const athlete = await getActiveAthlete(userId);
   const schedule = athlete?.scheduleConstraint;
+  const googleCalendarConnected = Boolean(await getCurrentGoogleAccessToken());
+  const params = (await searchParams) ?? {};
+  const statusMessage = scheduleStatusMessage(firstParam(params.error), firstParam(params.success));
 
   if (!athlete) {
     return (
@@ -60,6 +105,36 @@ export default async function SchedulePage() {
 
   return (
     <div className="space-y-4">
+      {statusMessage ? (
+        <Card className={statusMessage.tone === "green" ? "border-moss/25 bg-moss/10" : statusMessage.tone === "clay" ? "border-clay/20 bg-clay/5" : "border-amber-200 bg-amber-50/70"}>
+          <p className="text-sm font-semibold text-ink">{statusMessage.title}</p>
+          <p className="mt-2 text-sm leading-6 text-ink/70">{statusMessage.description}</p>
+        </Card>
+      ) : null}
+
+      <div className="flex flex-col gap-3 rounded-[24px] border border-ink/10 bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-ink">Google Calendar</p>
+          <p className="text-xs text-ink/55">
+            {googleCalendarConnected
+              ? "Google is linked. Pull your events straight into the schedule."
+              : "Connect Google once, grant read-only calendar access, then sync your week."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/account?intent=google-calendar"
+            className="inline-flex items-center rounded-full border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-pine"
+          >
+            {googleCalendarConnected ? "Manage Google access" : "Connect Google"}
+          </Link>
+          {googleCalendarConnected ? (
+            <form action={syncGoogleCalendarAction}>
+              <SubmitButton label="Pull from Google" pendingLabel="Pulling…" />
+            </form>
+          ) : null}
+        </div>
+      </div>
 
       {/* ── Calendar sync bar ──────────────────────────────── */}
       <div className="flex flex-col gap-3 rounded-[24px] border border-ink/10 bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -101,81 +176,36 @@ export default async function SchedulePage() {
         </div>
       </details>
 
-      {/* ── Main schedule form ─────────────────────────────── */}
-      <form action={saveScheduleAction} className="space-y-4">
-        <input type="hidden" name="userId" value={athlete.id} />
-        {/* Pass calendar URL through so it isn't wiped on save */}
-        <input type="hidden" name="calendarSourceUrl" value={schedule?.calendarSourceUrl ?? ""} />
-        {/* Pass fields the engine needs that aren't in ScheduleEditor */}
-        <input type="hidden" name="schoolWorkSchedule" value={schedule?.schoolWorkSchedule ?? ""} />
-        <input type="hidden" name="practiceSchedule" value={schedule?.practiceSchedule ?? ""} />
-        <input type="hidden" name="teamPractices" value={schedule?.teamPractices ?? ""} />
-        <input type="hidden" name="workNotes" value={schedule?.workNotes ?? ""} />
-        <input type="hidden" name="travelDates" value={schedule?.travelDates ?? ""} />
-        <input type="hidden" name="restDayPreferences" value={schedule?.restDayPreferences ?? ""} />
-        <input type="hidden" name="hardDaysRelativeToPractice" value={schedule?.hardDaysRelativeToPractice ?? ""} />
-        <input type="hidden" name="weeklyAvailabilityNotes" value={schedule?.weeklyAvailabilityNotes ?? ""} />
-
-        {/* Weekly calendar + competitions (the main UI) */}
-        <ScheduleEditor
-          initialEvents={parseWeeklyCalendar(schedule?.weeklyCalendar)}
-          initialCompetitions={competitions}
-          initialAvailability={initialAvailability}
-          initialTrainingAvailability={parseTrainingAvailability(schedule?.trainingAvailability)}
-        />
-
-        {/* ── Recovery snapshot ─────────────────────────────── */}
-        <details className="group rounded-[24px] border border-ink/10 bg-white/80">
-          <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink list-none">
-            Recovery snapshot
-            <span className="text-ink/40 text-xs group-open:rotate-180 transition-transform">▼</span>
-          </summary>
-          <div className="border-t border-ink/8 px-4 pb-4 pt-3">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Fatigue (1–10)">
-                <input name="fatigueLevel" type="number" min="1" max="10" defaultValue={schedule?.fatigueLevel ?? 4} className={inputClassName()} />
-              </Field>
-              <Field label="Energy (1–10)">
-                <input name="energyLevel" type="number" min="1" max="10" defaultValue={schedule?.energyLevel ?? ""} className={inputClassName()} />
-              </Field>
-              <Field label="Soreness (1–10)">
-                <input name="sorenessLevel" type="number" min="1" max="10" defaultValue={schedule?.sorenessLevel ?? ""} className={inputClassName()} />
-              </Field>
-              <Field label="Sleep score %" hint="WHOOP-style">
-                <input name="sleepScore" type="number" min="0" max="100" defaultValue={schedule?.sleepScore ?? ""} className={inputClassName()} />
-              </Field>
-              <Field label="Recovery score %" hint="WHOOP-style">
-                <input name="recoveryScore" type="number" min="0" max="100" defaultValue={schedule?.recoveryScore ?? ""} className={inputClassName()} />
-              </Field>
-              <Field label="Skin quality (1–10)">
-                <input name="skinQuality" type="number" min="1" max="10" defaultValue={schedule?.skinQuality ?? ""} className={inputClassName()} />
-              </Field>
-              <Field label="Day strain (0–21)">
-                <input name="dayStrain" type="number" min="0" max="21" step="0.1" defaultValue={schedule?.dayStrain ?? ""} className={inputClassName()} />
-              </Field>
-              <Field label="Climbing days (last 7)">
-                <input name="recentClimbingDays" type="number" min="0" max="7" defaultValue={schedule?.recentClimbingDays ?? ""} className={inputClassName()} />
-              </Field>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                <input type="checkbox" name="workAtGym" defaultChecked={schedule?.workAtGym ?? false} />
-                I work at the climbing gym
-              </label>
-              <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                <input type="checkbox" name="taperPreference" defaultChecked={schedule?.taperPreference ?? true} />
-                Taper before competitions
-              </label>
-              <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                <input type="checkbox" name="recoveryNeedsAfterComp" defaultChecked={schedule?.recoveryNeedsAfterComp ?? true} />
-                Recovery days after competitions
-              </label>
-            </div>
-          </div>
-        </details>
-
-        <SubmitButton label="Save schedule" pendingLabel="Saving…" />
-      </form>
+      {/* ── Main schedule editor (handles its own form in edit mode) ── */}
+      <ScheduleEditor
+        initialEvents={parseWeeklyCalendar(schedule?.weeklyCalendar)}
+        initialCompetitions={competitions}
+        initialAvailability={initialAvailability}
+        initialTrainingAvailability={parseTrainingAvailability(schedule?.trainingAvailability)}
+        passthrough={{
+          athleteId: athlete.id,
+          calendarSourceUrl: schedule?.calendarSourceUrl ?? "",
+          schoolWorkSchedule: schedule?.schoolWorkSchedule ?? "",
+          practiceSchedule: schedule?.practiceSchedule ?? "",
+          teamPractices: schedule?.teamPractices ?? "",
+          workNotes: schedule?.workNotes ?? "",
+          travelDates: schedule?.travelDates ?? "",
+          restDayPreferences: schedule?.restDayPreferences ?? "",
+          hardDaysRelativeToPractice: schedule?.hardDaysRelativeToPractice ?? "",
+          weeklyAvailabilityNotes: schedule?.weeklyAvailabilityNotes ?? "",
+          fatigueLevel: schedule?.fatigueLevel ?? 4,
+          energyLevel: schedule?.energyLevel ?? "",
+          sorenessLevel: schedule?.sorenessLevel ?? "",
+          sleepScore: schedule?.sleepScore ?? "",
+          recoveryScore: schedule?.recoveryScore ?? "",
+          skinQuality: schedule?.skinQuality ?? "",
+          dayStrain: schedule?.dayStrain ?? "",
+          recentClimbingDays: schedule?.recentClimbingDays ?? "",
+          workAtGym: schedule?.workAtGym ?? false,
+          taperPreference: schedule?.taperPreference ?? true,
+          recoveryNeedsAfterComp: schedule?.recoveryNeedsAfterComp ?? true,
+        }}
+      />
     </div>
   );
 }

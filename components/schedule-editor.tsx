@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import { Discipline } from "@prisma/client";
+import { saveScheduleAction } from "@/app/actions";
 import { CalendarEntry, CalendarEntryType, CalendarLoad } from "@/lib/calendar";
 import { dayNames } from "@/lib/format";
 import { TrainingAvailability } from "@/lib/training-availability";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Field, inputClassName } from "@/components/forms";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type CompetitionDraft = {
   id?: string;
@@ -15,36 +20,63 @@ type CompetitionDraft = {
   notes: string;
 };
 
+export type SchedulePassthrough = {
+  athleteId: string;
+  calendarSourceUrl: string;
+  schoolWorkSchedule: string;
+  practiceSchedule: string;
+  teamPractices: string;
+  workNotes: string;
+  travelDates: string;
+  restDayPreferences: string;
+  hardDaysRelativeToPractice: string;
+  weeklyAvailabilityNotes: string;
+  fatigueLevel: number | string;
+  energyLevel: number | string;
+  sorenessLevel: number | string;
+  sleepScore: number | string;
+  recoveryScore: number | string;
+  skinQuality: number | string;
+  dayStrain: number | string;
+  recentClimbingDays: number | string;
+  workAtGym: boolean;
+  taperPreference: boolean;
+  recoveryNeedsAfterComp: boolean;
+};
+
 type ScheduleEditorProps = {
   initialEvents: CalendarEntry[];
   initialCompetitions: CompetitionDraft[];
   initialAvailability: Record<string, number>;
   initialTrainingAvailability: TrainingAvailability;
+  passthrough: SchedulePassthrough;
 };
 
 // ── Type / load styling ───────────────────────────────────────────────────────
 
-type TypeConfig = { label: string; chipClass: string; dotClass: string };
+type TypeConfig = { label: string; chipClass: string; dotClass: string; viewClass: string };
 
 const TYPE_CONFIG: Record<CalendarEntryType, TypeConfig> = {
-  practice:    { label: "Practice",    chipClass: "bg-moss/15 text-pine border-moss/30",            dotClass: "bg-pine"       },
-  work:        { label: "Work",        chipClass: "bg-sandstone/25 text-clay border-sandstone/40",  dotClass: "bg-clay"       },
-  school:      { label: "School",      chipClass: "bg-blue-50 text-blue-700 border-blue-200",       dotClass: "bg-blue-500"   },
-  competition: { label: "Competition", chipClass: "bg-clay/15 text-clay border-clay/25",            dotClass: "bg-clay"       },
-  travel:      { label: "Travel",      chipClass: "bg-amber-50 text-amber-700 border-amber-200",    dotClass: "bg-amber-500"  },
-  climbing:    { label: "Climbing",    chipClass: "bg-purple-50 text-purple-700 border-purple-200", dotClass: "bg-purple-500" },
-  recovery:    { label: "Recovery",    chipClass: "bg-teal-50 text-teal-700 border-teal-200",       dotClass: "bg-teal-500"   },
-  life:        { label: "Life",        chipClass: "bg-ink/5 text-ink/60 border-ink/10",             dotClass: "bg-ink/40"     },
+  practice:    { label: "Practice",    chipClass: "bg-moss/15 text-pine border-moss/30",            dotClass: "bg-pine",       viewClass: "bg-moss/20 text-pine"          },
+  work:        { label: "Work",        chipClass: "bg-sandstone/25 text-clay border-sandstone/40",  dotClass: "bg-clay",       viewClass: "bg-sandstone/30 text-clay"     },
+  school:      { label: "School",      chipClass: "bg-blue-50 text-blue-700 border-blue-200",       dotClass: "bg-blue-500",   viewClass: "bg-blue-50 text-blue-700"      },
+  competition: { label: "Competition", chipClass: "bg-clay/15 text-clay border-clay/25",            dotClass: "bg-clay",       viewClass: "bg-clay/20 text-clay"          },
+  travel:      { label: "Travel",      chipClass: "bg-amber-50 text-amber-700 border-amber-200",    dotClass: "bg-amber-500",  viewClass: "bg-amber-50 text-amber-700"    },
+  climbing:    { label: "Climbing",    chipClass: "bg-purple-50 text-purple-700 border-purple-200", dotClass: "bg-purple-500", viewClass: "bg-purple-50 text-purple-700"  },
+  recovery:    { label: "Recovery",    chipClass: "bg-teal-50 text-teal-700 border-teal-200",       dotClass: "bg-teal-500",   viewClass: "bg-teal-50 text-teal-700"      },
+  life:        { label: "Life",        chipClass: "bg-ink/5 text-ink/60 border-ink/10",             dotClass: "bg-ink/40",     viewClass: "bg-ink/8 text-ink/60"          },
 };
 
 const LOAD_CONFIG: Record<CalendarLoad, { label: string; activeClass: string }> = {
-  low:      { label: "Low",      activeClass: "bg-moss/15 text-pine border-moss/30"          },
+  low:      { label: "Low",      activeClass: "bg-moss/15 text-pine border-moss/30"           },
   moderate: { label: "Moderate", activeClass: "bg-sandstone/30 text-clay border-sandstone/40" },
-  high:     { label: "High",     activeClass: "bg-clay/15 text-clay border-clay/25"           },
+  high:     { label: "High",     activeClass: "bg-clay/15 text-clay border-clay/25"            },
 };
 
 const ALL_TYPES = Object.keys(TYPE_CONFIG) as CalendarEntryType[];
 const ALL_LOADS = Object.keys(LOAD_CONFIG) as CalendarLoad[];
+
+const TODAY_DAY = new Date().toLocaleDateString("en-US", { weekday: "long" });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,7 +88,7 @@ function emptyCompetition(): CompetitionDraft {
   return { name: "", date: "", location: "", discipline: Discipline.MIXED, notes: "" };
 }
 
-// ── EventCard ─────────────────────────────────────────────────────────────────
+// ── EventCard (edit mode only) ────────────────────────────────────────────────
 
 type EventCardProps = {
   event: CalendarEntry;
@@ -68,10 +100,10 @@ type EventCardProps = {
 
 function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCardProps) {
   const cfg = TYPE_CONFIG[event.type] ?? TYPE_CONFIG.life;
+  const isSynced = Boolean(event.source && event.source !== "manual");
 
   return (
     <div className="rounded-2xl border border-ink/10 overflow-hidden">
-      {/* Collapsed row */}
       <button
         type="button"
         onClick={onToggle}
@@ -83,11 +115,10 @@ function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCar
         </span>
         {event.time ? <span className="text-xs text-ink/45 flex-shrink-0 hidden sm:block">{event.time}</span> : null}
         <span className={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${cfg.chipClass}`}>{cfg.label}</span>
-        {event.source === "ics" && <span className="text-xs text-ink/35 flex-shrink-0">synced</span>}
+        {isSynced && <span className="text-xs text-ink/35 flex-shrink-0">synced</span>}
         <span className="text-ink/25 text-xs flex-shrink-0 ml-1">{isExpanded ? "▲" : "▼"}</span>
       </button>
 
-      {/* Expanded edit panel */}
       {isExpanded && (
         <div className="border-t border-ink/8 bg-white px-3 pb-3 pt-3 space-y-3">
           <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
@@ -106,7 +137,6 @@ function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCar
             />
           </div>
 
-          {/* Type buttons */}
           <div>
             <p className="text-xs font-semibold text-ink/40 mb-1.5">What kind of event?</p>
             <div className="flex flex-wrap gap-1.5">
@@ -114,14 +144,8 @@ function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCar
                 const tcfg = TYPE_CONFIG[type];
                 const isActive = event.type === type;
                 return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => onUpdate("type", type)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                      isActive ? tcfg.chipClass : "border-ink/10 text-ink/50 hover:bg-ink/5"
-                    }`}
-                  >
+                  <button key={type} type="button" onClick={() => onUpdate("type", type)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${isActive ? tcfg.chipClass : "border-ink/10 text-ink/50 hover:bg-ink/5"}`}>
                     {tcfg.label}
                   </button>
                 );
@@ -129,7 +153,6 @@ function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCar
             </div>
           </div>
 
-          {/* Load buttons */}
           <div>
             <p className="text-xs font-semibold text-ink/40 mb-1.5">How draining is this?</p>
             <div className="flex gap-1.5">
@@ -137,14 +160,8 @@ function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCar
                 const lcfg = LOAD_CONFIG[load];
                 const isActive = event.load === load;
                 return (
-                  <button
-                    key={load}
-                    type="button"
-                    onClick={() => onUpdate("load", load)}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                      isActive ? lcfg.activeClass : "border-ink/10 text-ink/50 hover:bg-ink/5"
-                    }`}
-                  >
+                  <button key={load} type="button" onClick={() => onUpdate("load", load)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${isActive ? lcfg.activeClass : "border-ink/10 text-ink/50 hover:bg-ink/5"}`}>
                     {lcfg.label}
                   </button>
                 );
@@ -161,14 +178,9 @@ function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCar
           />
 
           <div className="flex items-center justify-between gap-2">
-            {event.source === "ics" && (
-              <p className="text-xs text-ink/35">Synced from calendar — your edits are saved locally.</p>
-            )}
-            <button
-              type="button"
-              onClick={onRemove}
-              className="ml-auto text-xs font-semibold text-clay hover:text-clay/70 transition-colors"
-            >
+            {isSynced && <p className="text-xs text-ink/35">Synced from calendar — your edits are saved locally.</p>}
+            <button type="button" onClick={onRemove}
+              className="ml-auto text-xs font-semibold text-clay hover:text-clay/70 transition-colors">
               Remove
             </button>
           </div>
@@ -185,7 +197,9 @@ export function ScheduleEditor({
   initialCompetitions,
   initialAvailability,
   initialTrainingAvailability,
+  passthrough,
 }: ScheduleEditorProps) {
+  const [mode, setMode] = useState<"view" | "edit">("view");
   const [events, setEvents] = useState<CalendarEntry[]>(initialEvents);
   const [competitions, setCompetitions] = useState<CompetitionDraft[]>(
     initialCompetitions.length ? initialCompetitions : [],
@@ -197,7 +211,15 @@ export function ScheduleEditor({
     events: events.filter((e) => e.day === day),
   }));
 
-  // ── Event handlers ──────────────────────────────────────────────────────────
+  const savedEvents = events.filter((e) => e.title.trim());
+  const savedCompetitions = competitions.filter((c) => c.name.trim() && c.date);
+
+  const timeAvailableByDay = dayNames.reduce<Record<string, number>>((acc, day) => {
+    acc[day] = initialAvailability[day] ?? 60;
+    return acc;
+  }, {});
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   function updateEvent(index: number, field: keyof CalendarEntry, value: string) {
     setEvents((cur) => cur.map((e, i) => (i === index ? { ...e, [field]: value } : e)));
@@ -225,20 +247,101 @@ export function ScheduleEditor({
     setCompetitions((cur) => cur.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
   }
 
-  // ── Serialized hidden fields ────────────────────────────────────────────────
+  // ── VIEW MODE ────────────────────────────────────────────────────────────────
 
-  const savedEvents = events.filter((e) => e.title.trim());
-  const savedCompetitions = competitions.filter((c) => c.name.trim() && c.date);
+  if (mode === "view") {
+    return (
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <p className="text-base font-semibold text-ink">Your week</p>
+          <button
+            type="button"
+            onClick={() => setMode("edit")}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-lg font-light shadow-sm"
+            title="Edit schedule"
+          >
+            +
+          </button>
+        </div>
 
-  // Also derive timeAvailableByDay from initialAvailability (pass-through)
-  const timeAvailableByDay = dayNames.reduce<Record<string, number>>((acc, day) => {
-    acc[day] = initialAvailability[day] ?? 60;
-    return acc;
-  }, {});
+        {/* Day grid */}
+        <div className="grid gap-3 xl:grid-cols-2">
+          {dayEvents.map(({ day, events: dayEvts }) => {
+            const isToday = day === TODAY_DAY;
+            return (
+              <div key={day}
+                className={`rounded-[20px] border p-3 transition-colors ${isToday ? "border-pine/30 bg-moss/5" : "border-ink/10 bg-white/70"}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <p className={`text-sm font-semibold ${isToday ? "text-pine" : "text-ink"}`}>{day}</p>
+                  {isToday && <span className="text-xs px-1.5 py-0.5 rounded-full bg-pine text-chalk font-semibold">Today</span>}
+                </div>
+                {dayEvts.length === 0 ? (
+                  <p className="text-xs text-ink/30 py-1">Nothing scheduled</p>
+                ) : (
+                  <div className="space-y-1">
+                    {dayEvts.map((ev, i) => {
+                      const cfg = TYPE_CONFIG[ev.type] ?? TYPE_CONFIG.life;
+                      return (
+                        <div key={i} className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 ${cfg.viewClass}`}>
+                          <span className="text-xs font-medium truncate flex-1">{ev.title || "Untitled"}</span>
+                          {ev.time && <span className="text-xs opacity-60 flex-shrink-0 hidden sm:block">{ev.time}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Competitions */}
+        {competitions.length > 0 && (
+          <div className="rounded-[20px] border border-ink/10 bg-white/70 p-4 space-y-2">
+            <p className="text-sm font-semibold text-ink">Competitions</p>
+            <div className="space-y-1.5">
+              {competitions.map((comp, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-xl bg-clay/8 px-3 py-2">
+                  <span className="text-sm font-medium text-ink flex-1">{comp.name}</span>
+                  {comp.date && <span className="text-xs text-ink/50">{new Date(comp.date + "T00:00:00").toLocaleDateString()}</span>}
+                  {comp.location && <span className="text-xs text-ink/40 hidden sm:block">{comp.location}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {savedEvents.length === 0 && competitions.length === 0 && (
+          <div className="rounded-[20px] border border-dashed border-ink/10 py-10 text-center">
+            <p className="text-sm text-ink/40">No schedule saved yet.</p>
+            <button type="button" onClick={() => setMode("edit")}
+              className="mt-2 text-sm font-semibold text-pine hover:text-pine/70 transition-colors">
+              Add your week →
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── EDIT MODE ────────────────────────────────────────────────────────────────
 
   return (
-    <>
-      {/* Hidden fields for server action */}
+    <form action={saveScheduleAction} className="space-y-4">
+      {/* Passthrough hidden fields */}
+      <input type="hidden" name="userId" value={passthrough.athleteId} />
+      <input type="hidden" name="calendarSourceUrl" value={passthrough.calendarSourceUrl} />
+      <input type="hidden" name="schoolWorkSchedule" value={passthrough.schoolWorkSchedule} />
+      <input type="hidden" name="practiceSchedule" value={passthrough.practiceSchedule} />
+      <input type="hidden" name="teamPractices" value={passthrough.teamPractices} />
+      <input type="hidden" name="workNotes" value={passthrough.workNotes} />
+      <input type="hidden" name="travelDates" value={passthrough.travelDates} />
+      <input type="hidden" name="restDayPreferences" value={passthrough.restDayPreferences} />
+      <input type="hidden" name="hardDaysRelativeToPractice" value={passthrough.hardDaysRelativeToPractice} />
+      <input type="hidden" name="weeklyAvailabilityNotes" value={passthrough.weeklyAvailabilityNotes} />
+
+      {/* Serialized schedule data */}
       <input type="hidden" name="weeklyCalendarJson" value={JSON.stringify(savedEvents)} />
       <input type="hidden" name="competitionsJson" value={JSON.stringify(savedCompetitions)} />
       <input type="hidden" name="trainingAvailabilityJson" value={JSON.stringify(initialTrainingAvailability)} />
@@ -246,31 +349,17 @@ export function ScheduleEditor({
         <input key={day} type="hidden" name={day.toLowerCase()} value={timeAvailableByDay[day]} />
       ))}
 
-      {/* ── Weekly calendar ────────────────────────────────── */}
-      <div className="space-y-3">
-        {/* Header + legend */}
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-base font-semibold text-ink">Your week</p>
-            {savedEvents.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {ALL_TYPES.map((type) => {
-                  const count = savedEvents.filter((e) => e.type === type).length;
-                  if (!count) return null;
-                  const cfg = TYPE_CONFIG[type];
-                  return (
-                    <span key={type} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${cfg.chipClass}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotClass}`} />
-                      {cfg.label} {count}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <p className="text-base font-semibold text-ink">Edit your week</p>
+        <button type="button" onClick={() => setMode("view")}
+          className="text-xs font-semibold text-ink/50 hover:text-ink transition-colors px-3 py-1.5 rounded-full border border-ink/10 hover:border-ink/25">
+          Cancel
+        </button>
+      </div>
 
-        {/* Day grid */}
+      {/* Day grid */}
+      <div className="space-y-3">
         <div className="grid gap-3 xl:grid-cols-2">
           {dayEvents.map(({ day, events: dayEvts }) => {
             const icsCount = dayEvts.filter((e) => e.source === "ics").length;
@@ -286,12 +375,9 @@ export function ScheduleEditor({
                       </p>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => addEvent(day)}
+                  <button type="button" onClick={() => addEvent(day)}
                     className="flex h-7 w-7 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-base font-light leading-none"
-                    title={`Add event on ${day}`}
-                  >
+                    title={`Add event on ${day}`}>
                     +
                   </button>
                 </div>
@@ -312,11 +398,8 @@ export function ScheduleEditor({
                       );
                     })
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => addEvent(day)}
-                      className="w-full rounded-xl border border-dashed border-ink/10 py-3 text-xs text-ink/35 hover:border-ink/25 hover:text-ink/50 transition-colors"
-                    >
+                    <button type="button" onClick={() => addEvent(day)}
+                      className="w-full rounded-xl border border-dashed border-ink/10 py-3 text-xs text-ink/35 hover:border-ink/25 hover:text-ink/50 transition-colors">
                       + Add event
                     </button>
                   )}
@@ -327,26 +410,20 @@ export function ScheduleEditor({
         </div>
       </div>
 
-      {/* ── Competitions ───────────────────────────────────── */}
+      {/* Competitions */}
       <div className="space-y-3 rounded-[20px] border border-ink/10 bg-white/70 p-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-semibold text-ink">Competitions</p>
-          <button
-            type="button"
-            onClick={() => setCompetitions((c) => [...c, emptyCompetition()])}
+          <button type="button" onClick={() => setCompetitions((c) => [...c, emptyCompetition()])}
             className="flex h-7 w-7 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-base font-light leading-none"
-            title="Add competition"
-          >
+            title="Add competition">
             +
           </button>
         </div>
 
         {competitions.length === 0 && (
-          <button
-            type="button"
-            onClick={() => setCompetitions([emptyCompetition()])}
-            className="w-full rounded-xl border border-dashed border-ink/10 py-3 text-xs text-ink/35 hover:border-ink/25 hover:text-ink/50 transition-colors"
-          >
+          <button type="button" onClick={() => setCompetitions([emptyCompetition()])}
+            className="w-full rounded-xl border border-dashed border-ink/10 py-3 text-xs text-ink/35 hover:border-ink/25 hover:text-ink/50 transition-colors">
             + Add competition
           </button>
         )}
@@ -355,47 +432,27 @@ export function ScheduleEditor({
           {competitions.map((comp, index) => (
             <div key={`${comp.id ?? "new"}-${index}`} className="rounded-2xl border border-ink/10 bg-mist/30 p-3 space-y-2">
               <div className="grid gap-2 sm:grid-cols-2">
-                <input
-                  value={comp.name}
-                  onChange={(e) => updateCompetition(index, "name", e.target.value)}
+                <input value={comp.name} onChange={(e) => updateCompetition(index, "name", e.target.value)}
                   placeholder="Competition name"
-                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15"
-                />
-                <input
-                  type="date"
-                  value={comp.date}
-                  onChange={(e) => updateCompetition(index, "date", e.target.value)}
-                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15"
-                />
-                <input
-                  value={comp.location}
-                  onChange={(e) => updateCompetition(index, "location", e.target.value)}
+                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
+                <input type="date" value={comp.date} onChange={(e) => updateCompetition(index, "date", e.target.value)}
+                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
+                <input value={comp.location} onChange={(e) => updateCompetition(index, "location", e.target.value)}
                   placeholder="Location"
-                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15"
-                />
-                <select
-                  value={comp.discipline}
-                  onChange={(e) => updateCompetition(index, "discipline", e.target.value)}
-                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15"
-                >
+                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
+                <select value={comp.discipline} onChange={(e) => updateCompetition(index, "discipline", e.target.value)}
+                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15">
                   {Object.values(Discipline).map((d) => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
               </div>
-              <textarea
-                value={comp.notes}
-                onChange={(e) => updateCompetition(index, "notes", e.target.value)}
-                placeholder="Notes"
-                rows={2}
-                className="w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none resize-none focus:border-pine focus:ring-2 focus:ring-pine/15"
-              />
+              <textarea value={comp.notes} onChange={(e) => updateCompetition(index, "notes", e.target.value)}
+                placeholder="Notes" rows={2}
+                className="w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none resize-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
               <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setCompetitions((c) => c.filter((_, i) => i !== index))}
-                  className="text-xs font-semibold text-clay hover:text-clay/70 transition-colors"
-                >
+                <button type="button" onClick={() => setCompetitions((c) => c.filter((_, i) => i !== index))}
+                  className="text-xs font-semibold text-clay hover:text-clay/70 transition-colors">
                   Remove
                 </button>
               </div>
@@ -403,6 +460,64 @@ export function ScheduleEditor({
           ))}
         </div>
       </div>
-    </>
+
+      {/* Recovery snapshot */}
+      <details className="group rounded-[24px] border border-ink/10 bg-white/80">
+        <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink list-none">
+          Recovery snapshot
+          <span className="text-ink/40 text-xs group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <div className="border-t border-ink/8 px-4 pb-4 pt-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Fatigue (1–10)">
+              <input name="fatigueLevel" type="number" min="1" max="10" defaultValue={passthrough.fatigueLevel} className={inputClassName()} />
+            </Field>
+            <Field label="Energy (1–10)">
+              <input name="energyLevel" type="number" min="1" max="10" defaultValue={passthrough.energyLevel} className={inputClassName()} />
+            </Field>
+            <Field label="Soreness (1–10)">
+              <input name="sorenessLevel" type="number" min="1" max="10" defaultValue={passthrough.sorenessLevel} className={inputClassName()} />
+            </Field>
+            <Field label="Sleep score %" hint="WHOOP-style">
+              <input name="sleepScore" type="number" min="0" max="100" defaultValue={passthrough.sleepScore} className={inputClassName()} />
+            </Field>
+            <Field label="Recovery score %" hint="WHOOP-style">
+              <input name="recoveryScore" type="number" min="0" max="100" defaultValue={passthrough.recoveryScore} className={inputClassName()} />
+            </Field>
+            <Field label="Skin quality (1–10)">
+              <input name="skinQuality" type="number" min="1" max="10" defaultValue={passthrough.skinQuality} className={inputClassName()} />
+            </Field>
+            <Field label="Day strain (0–21)">
+              <input name="dayStrain" type="number" min="0" max="21" step="0.1" defaultValue={passthrough.dayStrain} className={inputClassName()} />
+            </Field>
+            <Field label="Climbing days (last 7)">
+              <input name="recentClimbingDays" type="number" min="0" max="7" defaultValue={passthrough.recentClimbingDays} className={inputClassName()} />
+            </Field>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input type="checkbox" name="workAtGym" defaultChecked={passthrough.workAtGym} />
+              I work at the climbing gym
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input type="checkbox" name="taperPreference" defaultChecked={passthrough.taperPreference} />
+              Taper before competitions
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input type="checkbox" name="recoveryNeedsAfterComp" defaultChecked={passthrough.recoveryNeedsAfterComp} />
+              Recovery days after competitions
+            </label>
+          </div>
+        </div>
+      </details>
+
+      <div className="flex gap-3">
+        <button type="button" onClick={() => setMode("view")}
+          className="rounded-full border border-ink/10 px-5 py-2.5 text-sm font-semibold text-ink/60 hover:border-ink/25 hover:text-ink transition-colors">
+          Cancel
+        </button>
+        <SubmitButton label="Save schedule" pendingLabel="Saving…" />
+      </div>
+    </form>
   );
 }

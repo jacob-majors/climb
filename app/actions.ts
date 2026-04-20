@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { Discipline, ExperienceLevel, GradeScale, ClimbType, RecoveryQuality, StressLevel } from "@prisma/client";
 import { CalendarEntry, parseWeeklyCalendar } from "@/lib/calendar";
-import { importedCompetitionEvents, importableCalendarEntries, parseIcs } from "@/lib/ics";
+import { ImportedCalendarEvent, importedCompetitionEvents, importableCalendarEntries, parseIcs } from "@/lib/ics";
 import { parseLocalDateInput } from "@/lib/format";
+import { fetchGoogleCalendarEvents, getCurrentGoogleAccessToken } from "@/lib/google-calendar";
 import { prisma } from "@/lib/prisma";
 import {
   availabilityMinutesByDay,
@@ -54,6 +56,81 @@ function jsonValue<T>(formData: FormData, key: string, fallback: T): T {
 }
 
 type CompletionStatus = "PLANNED" | "COMPLETED" | "MODIFIED" | "SKIPPED";
+type SyncedCalendarSource = "ics" | "google";
+
+function entriesWithSource(entries: CalendarEntry[], source: SyncedCalendarSource) {
+  return entries.map((entry) => ({ ...entry, source }));
+}
+
+function mergeSyncedEntries(existingEntries: CalendarEntry[], incomingEntries: CalendarEntry[], source: SyncedCalendarSource) {
+  return [...existingEntries.filter((entry) => (entry.source ?? "manual") !== source), ...incomingEntries];
+}
+
+async function persistImportedCalendarData({
+  userId,
+  importedEvents,
+  source,
+  calendarSourceUrl,
+}: {
+  userId: string;
+  importedEvents: ImportedCalendarEvent[];
+  source: SyncedCalendarSource;
+  calendarSourceUrl?: string;
+}) {
+  const calendarEntries = entriesWithSource(importableCalendarEntries(importedEvents), source);
+  const competitions = importedCompetitionEvents(importedEvents);
+  const trainingAvailability = deriveAvailabilityFromCalendar(importedEvents);
+  const availability = availabilityMinutesByDay(trainingAvailability);
+
+  const existingSchedule = await prisma.scheduleConstraint.findUnique({ where: { userId } });
+  const existingEntries = parseWeeklyCalendar(existingSchedule?.weeklyCalendar ?? null);
+  const mergedEntries = mergeSyncedEntries(existingEntries, calendarEntries, source);
+
+  const baseCreate = {
+    userId,
+    timeAvailableByDay: JSON.stringify(availability),
+    fatigueLevel: existingSchedule?.fatigueLevel ?? 4,
+    weeklyCalendar: JSON.stringify(mergedEntries),
+    importedCalendarAt: new Date(),
+    trainingAvailability: stringifyTrainingAvailability(trainingAvailability),
+  };
+
+  const baseUpdate = {
+    weeklyCalendar: JSON.stringify(mergedEntries),
+    timeAvailableByDay: JSON.stringify(availability),
+    importedCalendarAt: new Date(),
+    trainingAvailability: stringifyTrainingAvailability(trainingAvailability),
+  };
+
+  await prisma.scheduleConstraint.upsert({
+    where: { userId },
+    create: calendarSourceUrl === undefined ? baseCreate : { ...baseCreate, calendarSourceUrl },
+    update: calendarSourceUrl === undefined ? baseUpdate : { ...baseUpdate, calendarSourceUrl },
+  });
+
+  for (const competition of competitions) {
+    const existing = await prisma.competitionEvent.findFirst({
+      where: {
+        userId,
+        name: competition.name,
+        eventDate: competition.eventDate,
+      },
+    });
+
+    if (!existing) {
+      await prisma.competitionEvent.create({
+        data: {
+          userId,
+          name: competition.name,
+          eventDate: competition.eventDate,
+          location: competition.location,
+          discipline: Discipline.MIXED,
+          notes: competition.notes,
+        },
+      });
+    }
+  }
+}
 
 export async function upsertProfileAction(formData: FormData) {
   const userId = await getOrCreateDbUser();
@@ -273,59 +350,12 @@ export async function importCalendarAction(formData: FormData) {
     importedEvents.push(...parseIcs(icsText));
   }
 
-  const calendarEntries = importableCalendarEntries(importedEvents);
-  const competitions = importedCompetitionEvents(importedEvents);
-  const trainingAvailability = deriveAvailabilityFromCalendar(importedEvents);
-  const availability = availabilityMinutesByDay(trainingAvailability);
-
-  // Preserve manually-added events (source !== "ics") when re-importing
-  const existingSchedule = await prisma.scheduleConstraint.findUnique({ where: { userId } });
-  const existingEntries = parseWeeklyCalendar(existingSchedule?.weeklyCalendar ?? null) as CalendarEntry[];
-  const manualEntries = existingEntries.filter((e) => e.source !== "ics");
-  const mergedEntries = [...calendarEntries, ...manualEntries];
-
-  await prisma.scheduleConstraint.upsert({
-    where: { userId },
-    create: {
-      userId,
-      timeAvailableByDay: JSON.stringify(availability),
-      fatigueLevel: 4,
-      weeklyCalendar: JSON.stringify(mergedEntries),
-      calendarSourceUrl: calendarUrls.join("\n"),
-      importedCalendarAt: new Date(),
-      trainingAvailability: stringifyTrainingAvailability(trainingAvailability),
-    },
-    update: {
-      weeklyCalendar: JSON.stringify(mergedEntries),
-      timeAvailableByDay: JSON.stringify(availability),
-      calendarSourceUrl: calendarUrls.join("\n"),
-      importedCalendarAt: new Date(),
-      trainingAvailability: stringifyTrainingAvailability(trainingAvailability),
-    },
+  await persistImportedCalendarData({
+    userId,
+    importedEvents,
+    source: "ics",
+    calendarSourceUrl: calendarUrls.join("\n"),
   });
-
-  for (const competition of competitions) {
-    const existing = await prisma.competitionEvent.findFirst({
-      where: {
-        userId,
-        name: competition.name,
-        eventDate: competition.eventDate,
-      },
-    });
-
-    if (!existing) {
-      await prisma.competitionEvent.create({
-        data: {
-          userId,
-          name: competition.name,
-          eventDate: competition.eventDate,
-          location: competition.location,
-          discipline: Discipline.MIXED,
-          notes: competition.notes,
-        },
-      });
-    }
-  }
 
   revalidatePath("/schedule");
   revalidatePath("/dashboard");
@@ -352,40 +382,46 @@ export async function refreshCalendarAction(formData: FormData) {
     }
   }
 
-  const calendarEntries = importableCalendarEntries(importedEvents);
-  const competitions = importedCompetitionEvents(importedEvents);
-  const trainingAvailability = deriveAvailabilityFromCalendar(importedEvents);
-  const availability = availabilityMinutesByDay(trainingAvailability);
-
-  // Preserve manually-added events
-  const existingEntries = parseWeeklyCalendar(schedule.weeklyCalendar ?? null) as CalendarEntry[];
-  const manualEntries = existingEntries.filter((e) => e.source !== "ics");
-  const mergedEntries = [...calendarEntries, ...manualEntries];
-
-  await prisma.scheduleConstraint.update({
-    where: { userId },
-    data: {
-      weeklyCalendar: JSON.stringify(mergedEntries),
-      timeAvailableByDay: JSON.stringify(availability),
-      trainingAvailability: stringifyTrainingAvailability(trainingAvailability),
-      importedCalendarAt: new Date(),
-    },
+  await persistImportedCalendarData({
+    userId,
+    importedEvents,
+    source: "ics",
   });
-
-  for (const competition of competitions) {
-    const existing = await prisma.competitionEvent.findFirst({
-      where: { userId, name: competition.name, eventDate: competition.eventDate },
-    });
-    if (!existing) {
-      await prisma.competitionEvent.create({
-        data: { userId, name: competition.name, eventDate: competition.eventDate, location: competition.location, discipline: Discipline.MIXED, notes: competition.notes },
-      });
-    }
-  }
 
   revalidatePath("/schedule");
   revalidatePath("/dashboard");
   redirect("/schedule");
+}
+
+export async function syncGoogleCalendarAction() {
+  const { userId: clerkId } = await auth();
+  const userId = await getOrCreateDbUser();
+  if (!clerkId || !userId) redirect("/sign-in");
+
+  const accessToken = await getCurrentGoogleAccessToken();
+  if (!accessToken) {
+    redirect("/account?intent=google-calendar&error=google-calendar-not-connected");
+  }
+
+  try {
+    const importedEvents = await fetchGoogleCalendarEvents(accessToken);
+
+    await persistImportedCalendarData({
+      userId,
+      importedEvents,
+      source: "google",
+    });
+
+    revalidatePath("/schedule");
+    revalidatePath("/dashboard");
+    redirect("/schedule?success=google-calendar-synced");
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("403")) {
+      redirect("/account?intent=google-calendar&error=google-calendar-permission");
+    }
+
+    redirect("/schedule?error=google-calendar-sync");
+  }
 }
 
 export async function generatePlanAction(formData: FormData) {
