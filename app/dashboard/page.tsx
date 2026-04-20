@@ -3,8 +3,6 @@ import {
   ArrowRight,
   BriefcaseBusiness,
   CalendarDays,
-  CheckCircle2,
-  CircleDashed,
   Clock3,
   GraduationCap,
   HeartPulse,
@@ -20,7 +18,7 @@ import { ProgressRing } from "@/components/progress-ring";
 import { SectionHeading } from "@/components/section-heading";
 import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { generatePlanAction, updateQuickCheckInAction, updateSessionCompletionAction } from "@/app/actions";
+import { updateQuickCheckInAction, updateSessionCompletionAction } from "@/app/actions";
 import { parseWeeklyCalendar, type CalendarEntryType } from "@/lib/calendar";
 import { getActiveAthlete } from "@/lib/data";
 import { getOrCreateDbUser } from "@/lib/auth";
@@ -29,6 +27,7 @@ import { dayNames, formatDate, formatSessionType, intensityClass, intensityLabel
 import { buildAdherenceSummary, getSessionDate, getSessionEntry, getUpcomingSession, nextOccurrenceOfDay } from "@/lib/plan-progress";
 import { getRecoveryBand, recoveryClass, recoveryLabel } from "@/lib/recovery";
 import { buildPeakForecast } from "@/lib/peak-forecast";
+import { buildSessionCoachSummary } from "@/lib/session-coach";
 import { findAvailabilityForDay, formatTrainingWindow } from "@/lib/training-availability";
 import {
   calculateSessionStrain,
@@ -66,6 +65,18 @@ function countdownLabel(days: number) {
   if (days === 0) return "Competition starts today";
   if (days === 1) return "1 day to go";
   return `${days} days to go`;
+}
+
+function competitionDateLabel(competition: Athlete["competitionEvents"][number]) {
+  const notes = competition.notes ?? "";
+  const rangeMatch = /(May\s+\d{1,2}\s*-\s*\d{1,2},?\s*\d{4})/i.exec(notes);
+  if (rangeMatch) return rangeMatch[1].replace(/\s+/g, " ");
+  return format(competition.eventDate, "MMM d, yyyy");
+}
+
+function metricPercent(value: number | null | undefined, max: number) {
+  if (value === null || value === undefined) return 0;
+  return Math.max(0, Math.min(100, Math.round((value / max) * 100)));
 }
 
 function parseFocusAreas(value?: string | null) {
@@ -338,186 +349,6 @@ function completionBadge(status: Athlete["trainingPlans"][number]["sessions"][nu
   }
 }
 
-type SetupTask = {
-  key: string;
-  label: string;
-  description: string;
-  done: boolean;
-  required: boolean;
-  href?: string;
-  actionLabel?: string;
-  cta?: "link" | "generate";
-  blocked?: boolean;
-};
-
-function buildSetupTasks(athlete: AthleteRecord): SetupTask[] {
-  const hasProfile = Boolean(athlete?.profile);
-  const hasSchedule = Boolean(athlete?.scheduleConstraint);
-  const hasRoutes = Boolean(athlete?.routeEntries.length);
-  const hasCompetition = Boolean(athlete?.competitionEvents.length);
-  const hasPlan = Boolean(athlete?.trainingPlans.length);
-
-  return [
-    {
-      key: "profile",
-      label: "Athlete profile",
-      description: hasProfile
-        ? "Age, discipline, grades, recovery baseline, and equipment are saved."
-        : "Save your athlete basics so the planner knows who it is building for.",
-      done: hasProfile,
-      required: true,
-      href: "/profile",
-      actionLabel: hasProfile ? "Edit" : "Finish profile",
-      cta: "link",
-    },
-    {
-      key: "schedule",
-      label: "Weekly schedule",
-      description: hasSchedule
-        ? "Your training availability, classes, work, and practice anchors are set."
-        : "Block out when you can train and add classes, work, practices, and comps.",
-      done: hasSchedule,
-      required: true,
-      href: "/schedule",
-      actionLabel: hasSchedule ? "Edit" : "Finish schedule",
-      cta: "link",
-    },
-    {
-      key: "plan",
-      label: "Training week",
-      description: hasPlan
-        ? "You already have at least one generated week to drive the dashboard."
-        : hasProfile && hasSchedule
-          ? "Generate your week so recovery, next session, and your plan cards can populate."
-          : "This unlocks after the athlete profile and weekly schedule are finished.",
-      done: hasPlan,
-      required: true,
-      href: hasPlan ? "/plans" : undefined,
-      actionLabel: hasPlan ? "Open plans" : "Generate week",
-      cta: hasPlan ? "link" : "generate",
-      blocked: !hasProfile || !hasSchedule,
-    },
-    {
-      key: "routes",
-      label: "Route analysis",
-      description: hasRoutes
-        ? "Recent climb notes are saved, so the plan can key off real weaknesses."
-        : "Log at least one recent route or boulder to make the plan more specific.",
-      done: hasRoutes,
-      required: false,
-      href: "/routes",
-      actionLabel: hasRoutes ? "Open" : "Add climb",
-      cta: "link",
-    },
-    {
-      key: "competition",
-      label: "Next competition",
-      description: hasCompetition
-        ? "A comp is saved, so countdown and taper logic have something to aim at."
-        : "Add your next comp so taper timing and countdown can show up here.",
-      done: hasCompetition,
-      required: false,
-      href: "/schedule",
-      actionLabel: hasCompetition ? "View" : "Add comp",
-      cta: "link",
-    },
-  ];
-}
-
-function SetupChecklistCard({ athlete }: { athlete: AthleteRecord }) {
-  const tasks = buildSetupTasks(athlete);
-  const requiredTasks = tasks.filter((task) => task.required);
-  const helpfulTasks = tasks.filter((task) => !task.required);
-  const completedRequired = requiredTasks.filter((task) => task.done).length;
-  const missingRequired = requiredTasks.length - completedRequired;
-  const showHelpful = helpfulTasks.some((task) => !task.done);
-
-  return (
-    <Card className="space-y-4">
-      <SectionHeading
-        eyebrow="Finish Setup"
-        title={missingRequired > 0 ? "Here is what still needs finishing" : "Core setup is done"}
-        description={
-          missingRequired > 0
-            ? "Recovery, next session, and the full week view unlock once these required pieces are in place."
-            : "The dashboard can run now. These extra pieces make the plan feel more specific and useful."
-        }
-      />
-
-      <div className="rounded-2xl bg-mist p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Required progress</p>
-        <p className="mt-2 text-lg font-semibold text-ink">
-          {completedRequired}/{requiredTasks.length} finished
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {requiredTasks.map((task) => (
-          <div key={task.key} className="flex items-start justify-between gap-4 rounded-2xl border border-ink/10 bg-white/70 p-4">
-            <div className="flex min-w-0 gap-3">
-              <span className={`mt-0.5 shrink-0 ${task.done ? "text-pine" : "text-ink/35"}`}>
-                {task.done ? <CheckCircle2 className="h-5 w-5" /> : <CircleDashed className="h-5 w-5" />}
-              </span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-ink">{task.label}</p>
-                  <span className="rounded-full border border-pine/15 bg-pine/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-pine">
-                    Required
-                  </span>
-                </div>
-                <p className="mt-1 text-sm leading-6 text-ink/65">{task.description}</p>
-              </div>
-            </div>
-
-            <div className="shrink-0">
-              {task.cta === "generate" && !task.done ? (
-                task.blocked ? (
-                  <span className="inline-flex rounded-full border border-ink/10 bg-ink/5 px-3 py-2 text-xs font-semibold text-ink/45">
-                    Finish first
-                  </span>
-                ) : (
-                  <form action={generatePlanAction}>
-                    <SubmitButton label="Generate week" pendingLabel="Generating..." className="bg-pine hover:bg-ink" />
-                  </form>
-                )
-              ) : task.href ? (
-                <Link
-                  href={task.href}
-                  className="inline-flex items-center gap-2 rounded-full border border-ink/10 px-3 py-2 text-xs font-semibold text-ink transition hover:border-pine hover:text-pine"
-                >
-                  {task.actionLabel}
-                </Link>
-              ) : null}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {showHelpful ? (
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Helpful next</p>
-          {helpfulTasks.filter((task) => !task.done).map((task) => (
-            <div key={task.key} className="flex items-start justify-between gap-4 rounded-2xl border border-ink/10 bg-mist/45 p-4">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">{task.label}</p>
-                <p className="mt-1 text-sm leading-6 text-ink/65">{task.description}</p>
-              </div>
-              {task.href ? (
-                <Link
-                  href={task.href}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-full border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:border-pine hover:text-pine"
-                >
-                  {task.actionLabel}
-                </Link>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </Card>
-  );
-}
-
 export default async function DashboardPage() {
   let userId: string | null = null;
   try {
@@ -535,11 +366,7 @@ export default async function DashboardPage() {
   }
 
   if (!athlete || !athlete.profile || !athlete.scheduleConstraint) {
-    return (
-      <div className="mx-auto max-w-4xl space-y-4 sm:space-y-6">
-        <SetupChecklistCard athlete={athlete} />
-      </div>
-    );
+    redirect("/profile");
   }
 
   const schedule = athlete.scheduleConstraint;
@@ -598,13 +425,9 @@ export default async function DashboardPage() {
     sessions: currentPlan?.sessions ?? [],
     planStartDate: currentPlan?.startDate,
   });
-  const setupTasks = buildSetupTasks(athlete);
-  const hasIncompleteSetup = setupTasks.some((task) => !task.done);
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
-      {hasIncompleteSetup ? <SetupChecklistCard athlete={athlete} /> : null}
-
       <Card className="space-y-4 lg:hidden">
         <SectionHeading
           eyebrow="Quick Check-In"
@@ -766,19 +589,12 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Recovery + generate row */}
-        <div className="flex items-center justify-between gap-4 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <span className={`h-2.5 w-2.5 rounded-full ${recovery.band === "green" ? "bg-emerald-500" : recovery.band === "yellow" ? "bg-amber-400" : "bg-red-500"}`} />
-            <div>
-              <p className="text-sm font-semibold text-ink">{recoveryLabel(recovery.band)}</p>
-              <p className="text-xs text-ink/50">{readinessCue(recovery.band)}</p>
-            </div>
+        <div className="flex items-center gap-3 px-6 py-4">
+          <span className={`h-2.5 w-2.5 rounded-full ${recovery.band === "green" ? "bg-emerald-500" : recovery.band === "yellow" ? "bg-amber-400" : "bg-red-500"}`} />
+          <div>
+            <p className="text-sm font-semibold text-ink">{recoveryLabel(recovery.band)}</p>
+            <p className="text-xs text-ink/50">{readinessCue(recovery.band)}</p>
           </div>
-
-          <form action={generatePlanAction}>
-            <SubmitButton label="Generate week" pendingLabel="Generating..." className="bg-pine hover:bg-ink shrink-0" />
-          </form>
         </div>
       </Card>
 
@@ -915,6 +731,16 @@ export default async function DashboardPage() {
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
         {sessionEntry ? (
           <Card className="space-y-4">
+            {(() => {
+              const coach = buildSessionCoachSummary({
+                sessionType: sessionEntry.session.sessionType,
+                intensity: sessionEntry.session.intensity,
+                durationMinutes: sessionEntry.session.durationMinutes,
+                loadScore: sessionEntry.session.loadScore,
+              });
+
+              return (
+                <>
             <SectionHeading
               eyebrow="Next Session"
               title={sessionEntry.session.title}
@@ -945,9 +771,29 @@ export default async function DashboardPage() {
               </div>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Goal</p>
+                <p className="mt-2 text-sm leading-6 text-ink">{coach.goal}</p>
+              </div>
+              <div className="rounded-2xl border border-ink/10 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">How hard</p>
+                <p className="mt-2 text-sm leading-6 text-ink">{coach.effort}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Win if</p>
+                <p className="mt-2 text-sm leading-6 text-emerald-950/80">{coach.win}</p>
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Why this session</p>
               <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.whyChosen}</p>
+            </div>
+
+            <div className="rounded-2xl border border-ink/10 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Pacing cue</p>
+              <p className="mt-2 text-sm leading-6 text-ink">{coach.pacing}</p>
             </div>
 
             <div className="grid gap-3">
@@ -983,6 +829,9 @@ export default async function DashboardPage() {
                 </Link>
               ) : null}
             </div>
+                </>
+              );
+            })()}
           </Card>
         ) : (
           <Card>

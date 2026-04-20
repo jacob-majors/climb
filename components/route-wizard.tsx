@@ -30,7 +30,21 @@ const ROUTE_COLORS = [
 
 type RouteColor = (typeof ROUTE_COLORS)[number];
 
-const GRADE_SCALES = Object.values(GradeScale);
+const YDS_GRADES = [
+  "5.5","5.6","5.7","5.8","5.9",
+  "5.10a","5.10b","5.10c","5.10d",
+  "5.11a","5.11b","5.11c","5.11d",
+  "5.12a","5.12b","5.12c","5.12d",
+  "5.13a","5.13b","5.13c","5.13d",
+  "5.14a","5.14b","5.14c","5.14d",
+  "5.15a","5.15b","5.15c","5.15d",
+] as const;
+
+const V_SCALE_GRADES = [
+  "V0","V1","V2","V3","V4","V5","V6","V7","V8",
+  "V9","V10","V11","V12","V13","V14","V15","V16","V17",
+] as const;
+
 const WALL_ANGLES = ["Slab", "Vertical", "Slight overhang", "Steep overhang", "Cave / Roof"] as const;
 const WALL_HEIGHTS = ["Under 5m", "5-10m", "10-20m", "20-35m", "35m+ / Multi-pitch"] as const;
 
@@ -137,10 +151,10 @@ type DetailLevel = "quick" | "standard" | "deep";
 type StepId =
   | "venue"
   | "gym"
+  | "type"
   | "sessionsRoute"
   | "name"
   | "grade"
-  | "type"
   | "detail"
   | "angle"
   | "height"
@@ -158,10 +172,10 @@ type StepId =
 const STEP_LABELS: Record<StepId, string> = {
   venue: "Where",
   gym: "Gym",
+  type: "Type",
   sessionsRoute: "Zone",
   name: "Color",
   grade: "Grade",
-  type: "Type",
   detail: "Depth",
   angle: "Angle",
   height: "Height",
@@ -201,7 +215,7 @@ type WizardData = {
   grade: string;
   gradeScale: GradeScale;
   climbType: ClimbType;
-  environment: string;
+  environment: "" | "Indoor" | "Outdoor" | string;
   wallAngle: string;
   wallHeight: string;
   holdTypes: string[];
@@ -228,7 +242,7 @@ const defaultData: WizardData = {
   grade: "",
   gradeScale: GradeScale.YDS,
   climbType: ClimbType.ROUTE,
-  environment: "Indoor",
+  environment: "",
   wallAngle: "",
   wallHeight: "",
   holdTypes: [],
@@ -398,18 +412,20 @@ function ScalePicker({
 function getSteps(data: WizardData): StepId[] {
   const steps: StepId[] = ["venue"];
 
-  // Indoor → ask which gym; Outdoor skips straight to route details
-  if (data.environment !== "Outdoor") {
+  if (data.environment === "Indoor") {
     steps.push("gym");
   }
 
-  if (data.isSessions) {
+  if (data.environment) {
+    steps.push("type");
+  }
+
+  if (data.isSessions && data.environment === "Indoor" && data.climbType) {
     steps.push("sessionsRoute");
-    if (!data.gymRouteId) {
-      steps.push("name", "grade", "type");
-    }
-  } else {
-    steps.push("name", "grade", "type");
+  }
+
+  if (!data.gymRouteId && data.environment) {
+    steps.push("name", "grade");
   }
 
   steps.push("detail");
@@ -419,7 +435,11 @@ function getSteps(data: WizardData): StepId[] {
   }
 
   if (data.detailLevel === "deep") {
-    steps.push("angle", "height", "style");
+    steps.push("angle");
+    if (!(data.isSessions && data.climbType === ClimbType.ROUTE)) {
+      steps.push("height");
+    }
+    steps.push("style");
   }
 
   steps.push("pump", "crux", "confidence", "strong", "weak", "notes");
@@ -437,14 +457,14 @@ function stepQuestion(step: StepId, data: WizardData) {
       return "Inside or outside?";
     case "gym":
       return "Which gym?";
+    case "type":
+      return data.isSessions ? "Ropes or boulder?" : "Boulder or route?";
     case "sessionsRoute":
       return "Which zone did you climb in?";
     case "name":
       return "What color is the route?";
     case "grade":
       return "What was the grade?";
-    case "type":
-      return "Boulder or route?";
     case "detail":
       return "How much detail do you want to add today?";
     case "angle":
@@ -587,19 +607,16 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
     setStepIndex((current) => Math.max(current - 1, 0));
   }
 
-  function chooseEnvironment(env: "Indoor" | "Outdoor") {
+  function chooseEnvironment(environment: "Indoor" | "Outdoor") {
     setColorTags([]);
     setColorInput("");
-    setData((current) => ({
+    setData({
       ...defaultData,
-      environment: env,
-      isSessions: env === "Outdoor" ? false : null,
-      gymName: env === "Outdoor" ? "" : current.gymName,
-      detailLevel: current.detailLevel,
-      pumpLevel: current.pumpLevel,
-      cruxDifficulty: current.cruxDifficulty,
-      confidenceLevel: current.confidenceLevel,
-    }));
+      environment,
+      isSessions: environment === "Outdoor" ? false : null,
+      gymName: "",
+      gradeScale: environment === "Outdoor" ? GradeScale.YDS : GradeScale.YDS,
+    });
     setStepIndex(1);
     setAnimKey((current) => current + 1);
   }
@@ -616,8 +633,10 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
       gymRouteId: "",
       title: "",
       grade: "",
+      gradeScale: current.climbType === ClimbType.BOULDER ? GradeScale.V_SCALE : GradeScale.YDS,
     }));
-    advance();
+    setStepIndex(2);
+    setAnimKey((current) => current + 1);
   }
 
   function chooseZone(zoneId: SessionsZoneId) {
@@ -662,6 +681,16 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
       holdTypes: parseCommaList(route.holdTypes),
       movementType: route.movementType ?? "",
       styleTags: parseStyleTags(route.styleTags),
+    }));
+    advance();
+  }
+
+  function chooseClimbType(type: ClimbType) {
+    setData((current) => ({
+      ...current,
+      climbType: type,
+      grade: current.gymRouteId ? current.grade : "",
+      gradeScale: type === ClimbType.BOULDER ? GradeScale.V_SCALE : GradeScale.YDS,
     }));
     advance();
   }
@@ -744,6 +773,8 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
   if (data.movementType) chips.push(data.movementType.split(" ")[0]);
   if (data.pumpLevel) chips.push(`Pump ${data.pumpLevel}`);
 
+  const gradeOptions = data.climbType === ClimbType.BOULDER ? V_SCALE_GRADES : YDS_GRADES;
+
   const canNext = (() => {
     if (!currentStep) return false;
     switch (currentStep) {
@@ -754,8 +785,7 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
     }
   })();
 
-  // "name" auto-advances on color tap; grade needs explicit Next
-  const showNextButton = currentStep ? ["grade", "holds", "style", "strong", "weak", "notes"].includes(currentStep) : false;
+  const showNextButton = currentStep ? ["holds", "style", "strong", "weak", "notes"].includes(currentStep) : false;
 
   if (isDone) {
     return (
@@ -843,7 +873,7 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
             >
               <p className="text-3xl mb-2">🏋️</p>
               <p className="text-base font-semibold text-ink">Inside</p>
-              <p className="mt-1 text-sm text-ink/60">Gym, training wall, or climbing center.</p>
+              <p className="mt-1 text-sm text-ink/60">Gym, training center, or board session.</p>
             </button>
             <button
               type="button"
@@ -852,7 +882,7 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
             >
               <p className="text-3xl mb-2">🌲</p>
               <p className="text-base font-semibold text-ink">Outside</p>
-              <p className="mt-1 text-sm text-ink/60">Crag, sport, trad, or outdoor boulder.</p>
+              <p className="mt-1 text-sm text-ink/60">Crag, rope route, or outdoor boulder.</p>
             </button>
           </div>
         )}
@@ -866,7 +896,7 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
             >
               <p className="text-3xl mb-2">📍</p>
               <p className="text-base font-semibold text-ink">Sessions</p>
-              <p className="mt-1 text-sm text-ink/60">Pick the zone on the map and reuse logged routes.</p>
+              <p className="mt-1 text-sm text-ink/60">Use the zone map and reuse routes people already logged.</p>
             </button>
             <button
               type="button"
@@ -875,7 +905,7 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
             >
               <p className="text-3xl mb-2">🏠</p>
               <p className="text-base font-semibold text-ink">Other gym</p>
-              <p className="mt-1 text-sm text-ink/60">Any other climbing gym or training space.</p>
+              <p className="mt-1 text-sm text-ink/60">Keep the same fast flow without the Sessions map.</p>
             </button>
           </div>
         )}
@@ -993,30 +1023,33 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
 
         {currentStep === "grade" && (
           <div className="space-y-3">
-            <input
-              autoFocus
-              value={data.grade}
-              onChange={(event) => setField("grade", event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && data.grade.trim() && advance()}
-              placeholder="e.g. 5.12a, 5.11d, V5"
-              className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-4 text-base outline-none placeholder:text-ink/30 focus:border-pine focus:ring-2 focus:ring-pine/15"
-            />
-            <div className="flex flex-wrap gap-2">
-              {GRADE_SCALES.map((scale) => (
+            <div
+              className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory"
+              style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
+            >
+              {gradeOptions.map((grade) => (
                 <button
-                  key={scale}
+                  key={grade}
                   type="button"
-                  onClick={() => setField("gradeScale", scale)}
-                  className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-all ${
-                    data.gradeScale === scale
-                      ? "border-pine bg-pine text-chalk"
+                  onClick={() => {
+                    setData((current) => ({
+                      ...current,
+                      grade,
+                      gradeScale: current.climbType === ClimbType.BOULDER ? GradeScale.V_SCALE : GradeScale.YDS,
+                    }));
+                    setTimeout(advance, 220);
+                  }}
+                  className={`snap-center shrink-0 rounded-full border px-4 py-2.5 text-sm font-semibold transition-all ${
+                    data.grade === grade
+                      ? "border-pine bg-pine text-chalk shadow-md"
                       : "border-ink/10 bg-white text-ink/60 hover:border-pine/40"
                   }`}
                 >
-                  {scale.replace(/_/g, " ")}
+                  {grade}
                 </button>
               ))}
             </div>
+            <p className="text-xs text-center text-ink/35">Swipe to see more grades · tap to select</p>
           </div>
         )}
 
@@ -1026,17 +1059,14 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
               <button
                 key={type}
                 type="button"
-                onClick={() => {
-                  setField("climbType", type);
-                  advance();
-                }}
+                onClick={() => chooseClimbType(type)}
                 className={`rounded-[20px] border py-8 text-base font-semibold transition-all active:scale-95 ${
                   data.climbType === type
                     ? "border-pine bg-pine text-chalk shadow-md"
                     : "border-ink/10 bg-white text-ink hover:border-pine/30"
                 }`}
               >
-                {type === ClimbType.ROUTE ? "Lead / route" : "Boulder"}
+                {type === ClimbType.ROUTE ? "Ropes" : "Boulder"}
               </button>
             ))}
           </div>

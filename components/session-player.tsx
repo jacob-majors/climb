@@ -7,12 +7,21 @@ type SessionData = {
   id: string;
   title: string;
   planTitle: string;
+  sessionTypeLabel: string;
+  intensityLabel: string;
+  loadScore: number;
   warmup: string;
   mainWork: string;
   cooldown: string;
   durationMinutes: number;
   recoveryNotes: string;
   whyChosen: string;
+  coach: {
+    goal: string;
+    effort: string;
+    pacing: string;
+    win: string;
+  };
 };
 
 const SECTIONS = ["warmup", "main", "cooldown", "survey"] as const;
@@ -211,6 +220,9 @@ export function SessionPlayer({ session }: { session: SessionData }) {
       <div className="sticky top-0 z-10 bg-chalk/90 backdrop-blur border-b border-ink/8 px-4 py-3">
         <p className="text-xs text-ink/45 font-medium">{session.planTitle}</p>
         <p className="text-sm font-semibold text-ink truncate">{session.title}</p>
+        <p className="mt-1 text-xs text-ink/50">
+          {session.sessionTypeLabel} • {session.intensityLabel} • load {session.loadScore}
+        </p>
         {/* Section dots */}
         <div className="flex gap-1.5 mt-2">
           {SECTIONS.map((s, i) => (
@@ -230,6 +242,17 @@ export function SessionPlayer({ session }: { session: SessionData }) {
 
         {currentSection !== "survey" && (
           <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[18px] border border-pine/10 bg-pine/5 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">Goal</p>
+                <p className="mt-2 text-sm leading-6 text-ink">{session.coach.goal}</p>
+              </div>
+              <div className="rounded-[18px] border border-ink/10 bg-white p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">How Hard</p>
+                <p className="mt-2 text-sm leading-6 text-ink">{session.coach.effort}</p>
+              </div>
+            </div>
+
             <div className="rounded-[20px] bg-white/80 border border-ink/10 p-4">
               <p className="text-base leading-7 text-ink whitespace-pre-line">
                 {sectionContent[currentSection]}
@@ -239,9 +262,22 @@ export function SessionPlayer({ session }: { session: SessionData }) {
             {currentSection === "warmup" && hasHangboard && <HangTimer />}
 
             {currentSection === "warmup" && (
-              <div className="rounded-[16px] bg-pine/5 border border-pine/10 px-4 py-3">
-                <p className="text-xs font-semibold text-pine mb-1">Why this session</p>
-                <p className="text-sm text-ink/70 leading-relaxed">{session.whyChosen}</p>
+              <div className="space-y-3">
+                <div className="rounded-[16px] bg-pine/5 border border-pine/10 px-4 py-3">
+                  <p className="text-xs font-semibold text-pine mb-1">Why this session</p>
+                  <p className="text-sm text-ink/70 leading-relaxed">{session.whyChosen}</p>
+                </div>
+                <div className="rounded-[16px] border border-ink/10 bg-white px-4 py-3">
+                  <p className="text-xs font-semibold text-pine mb-1">Pacing cue</p>
+                  <p className="text-sm text-ink/70 leading-relaxed">{session.coach.pacing}</p>
+                </div>
+              </div>
+            )}
+
+            {currentSection === "main" && (
+              <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-xs font-semibold text-emerald-700 mb-1">What counts as a win</p>
+                <p className="text-sm text-emerald-950/80 leading-relaxed">{session.coach.win}</p>
               </div>
             )}
           </>

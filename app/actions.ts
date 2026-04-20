@@ -1,5 +1,6 @@
 "use server";
 
+import { startOfDay } from "date-fns";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
@@ -78,9 +79,11 @@ async function persistImportedCalendarData({
   source: SyncedCalendarSource;
   calendarSourceUrl?: string;
 }) {
-  const calendarEntries = entriesWithSource(importableCalendarEntries(importedEvents), source);
-  const competitions = importedCompetitionEvents(importedEvents);
-  const trainingAvailability = deriveAvailabilityFromCalendar(importedEvents);
+  const now = new Date();
+  const upcomingEvents = importedEvents.filter((event) => event.start.getTime() >= startOfDay(now).getTime());
+  const calendarEntries = entriesWithSource(importableCalendarEntries(upcomingEvents), source);
+  const competitions = importedCompetitionEvents(upcomingEvents);
+  const trainingAvailability = deriveAvailabilityFromCalendar(upcomingEvents);
   const availability = availabilityMinutesByDay(trainingAvailability);
 
   const existingSchedule = await prisma.scheduleConstraint.findUnique({ where: { userId } });

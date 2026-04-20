@@ -18,11 +18,14 @@ export function SessionsGymMap({
   zoneCounts: Partial<Record<SessionsZoneId, number>>;
 }) {
   return (
-    <div className="overflow-hidden rounded-[26px] border border-ink/10 bg-[linear-gradient(180deg,#f9fafb_0%,#f4f7f7_100%)]">
+    <div className="overflow-hidden rounded-[26px] border border-[#edf2f7] bg-[linear-gradient(180deg,#fbfbfc_0%,#f5f7fa_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
       <svg viewBox="0 0 840 520" className="h-auto w-full">
         <defs>
-          <filter id="zone-shadow" x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#0f172a" floodOpacity="0.08" />
+          <filter id="zone-shadow" x="-12%" y="-12%" width="124%" height="124%">
+            <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#64748b" floodOpacity="0.12" />
+          </filter>
+          <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#94a3b8" floodOpacity="0.22" />
           </filter>
         </defs>
 
@@ -38,8 +41,18 @@ export function SessionsGymMap({
                 d={zone.path}
                 filter="url(#zone-shadow)"
                 className="cursor-pointer transition-all duration-200"
-                fill={isActive ? "#244f48" : "#d5d6d5"}
-                stroke={isActive ? "#0f2824" : "#c2d0de"}
+                fill="none"
+                stroke={isActive ? "#dbe9f7" : "#d5e3f2"}
+                strokeLinejoin="round"
+                strokeWidth={isActive ? 16 : 14}
+                onClick={() => onSelect(zone.id)}
+              />
+              <path
+                d={zone.path}
+                className="cursor-pointer transition-all duration-200"
+                fill={isActive ? "#415c57" : "#d6d6d6"}
+                stroke={isActive ? "#dce9f4" : "#e4edf6"}
+                strokeLinejoin="round"
                 strokeWidth={isActive ? 4 : 3}
                 onClick={() => onSelect(zone.id)}
               />
@@ -47,14 +60,15 @@ export function SessionsGymMap({
                 x={zone.labelX}
                 y={zone.labelY}
                 textAnchor="middle"
-                className="pointer-events-none select-none fill-current text-[16px] font-semibold"
-                style={{ color: isActive ? "#f8f4ee" : "#111827" }}
+                className="pointer-events-none select-none fill-current text-[15px] font-semibold"
+                style={{ color: isActive ? "#f8f4ee" : "#101828" }}
               >
                 {zone.label}
               </text>
               <g
                 className="cursor-pointer"
                 transform={`translate(${zone.badgeX}, ${zone.badgeY})`}
+                filter="url(#badge-shadow)"
                 onClick={() => onSelect(zone.id)}
               >
                 <circle
@@ -62,15 +76,15 @@ export function SessionsGymMap({
                   cy="0"
                   r={count > 0 ? 26 : 22}
                   fill={isActive ? "#111827" : "#ffffff"}
-                  stroke={isActive ? "#111827" : "#e5e7eb"}
-                  strokeWidth="4"
+                  stroke={isActive ? "#111827" : "#f3f4f6"}
+                  strokeWidth="5"
                 />
                 <text
                   x="0"
                   y="7"
                   textAnchor="middle"
                   className="pointer-events-none select-none fill-current text-[18px] font-semibold"
-                  style={{ color: isActive ? "#f8f4ee" : count > 0 ? "#81889b" : "#244f48" }}
+                  style={{ color: isActive ? "#f8f4ee" : "#8b92a6" }}
                 >
                   {countLabel(count)}
                 </text>

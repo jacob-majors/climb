@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
+import { formatSessionType, intensityLabel } from "@/lib/format";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { SessionPlayer } from "@/components/session-player";
+import { buildSessionCoachSummary } from "@/lib/session-coach";
 
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const userId = await getOrCreateDbUser();
@@ -15,18 +17,29 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
 
   if (!session || session.trainingPlan.userId !== userId) redirect("/dashboard");
 
+  const coach = buildSessionCoachSummary({
+    sessionType: session.sessionType,
+    intensity: session.intensity,
+    durationMinutes: session.durationMinutes,
+    loadScore: session.loadScore,
+  });
+
   return (
     <SessionPlayer
       session={{
         id: session.id,
         title: session.title,
         planTitle: session.trainingPlan.title,
+        sessionTypeLabel: formatSessionType(session.sessionType),
+        intensityLabel: intensityLabel(session.intensity),
+        loadScore: session.loadScore,
         warmup: session.warmup,
         mainWork: session.mainWork,
         cooldown: session.cooldown,
         durationMinutes: session.durationMinutes,
         recoveryNotes: session.recoveryNotes,
         whyChosen: session.whyChosen,
+        coach,
       }}
     />
   );

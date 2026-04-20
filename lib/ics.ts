@@ -10,6 +10,10 @@ export type ImportedCalendarEvent = {
   description?: string;
 };
 
+function isUpcomingEvent(event: ImportedCalendarEvent) {
+  return isAfter(event.start, addDays(startOfDay(new Date()), -1));
+}
+
 function unfoldIcsLines(text: string) {
   return text.replace(/\r?\n[ \t]/g, "");
 }
@@ -114,9 +118,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
   const now = startOfDay(new Date());
   const windowEnd = addDays(now, 21);
 
-  const filtered = events.filter(
-    (e) => isAfter(e.start, addDays(now, -1)) && isBefore(e.start, windowEnd),
-  );
+  const filtered = events.filter((event) => isUpcomingEvent(event) && isBefore(event.start, windowEnd));
 
   // Separate school events from everything else, group school by day
   const schoolByDay = new Map<string, ImportedCalendarEvent[]>();
@@ -174,6 +176,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
 
 export function importedCompetitionEvents(events: ImportedCalendarEvent[]) {
   return events
+    .filter((event) => isUpcomingEvent(event))
     .filter((event) => inferType(event.title, event.description) === "competition")
     .map((event) => ({
       name: event.title,
