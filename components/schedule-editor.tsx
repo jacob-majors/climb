@@ -190,6 +190,23 @@ function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCar
   );
 }
 
+// ── Week date helpers ─────────────────────────────────────────────────────────
+
+function getWeekDates() {
+  const today = new Date();
+  const dow = today.getDay(); // 0 = Sun
+  const daysFromMonday = dow === 0 ? 6 : dow - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysFromMonday);
+  return dayNames.map((name, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return { name, dateNum: d.getDate(), monthLabel: d.toLocaleDateString("en-US", { month: "long", day: "numeric" }) };
+  });
+}
+
+const WEEK_DATES = getWeekDates();
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ScheduleEditor({
@@ -200,6 +217,7 @@ export function ScheduleEditor({
   passthrough,
 }: ScheduleEditorProps) {
   const [mode, setMode] = useState<"view" | "edit">("view");
+  const [selectedDay, setSelectedDay] = useState(TODAY_DAY);
   const [events, setEvents] = useState<CalendarEntry[]>(initialEvents);
   const [competitions, setCompetitions] = useState<CompetitionDraft[]>(
     initialCompetitions.length ? initialCompetitions : [],
@@ -250,6 +268,10 @@ export function ScheduleEditor({
   // ── VIEW MODE ────────────────────────────────────────────────────────────────
 
   if (mode === "view") {
+    const selectedEvents = events.filter((e) => e.day === selectedDay);
+    const selectedMeta = WEEK_DATES.find((d) => d.name === selectedDay);
+    const isSelectedToday = selectedDay === TODAY_DAY;
+
     return (
       <div className="space-y-4">
         {/* Header */}
@@ -265,36 +287,89 @@ export function ScheduleEditor({
           </button>
         </div>
 
-        {/* Day grid */}
-        <div className="grid gap-3 xl:grid-cols-2">
-          {dayEvents.map(({ day, events: dayEvts }) => {
-            const isToday = day === TODAY_DAY;
-            return (
-              <div key={day}
-                className={`rounded-[20px] border p-3 transition-colors ${isToday ? "border-pine/30 bg-moss/5" : "border-ink/10 bg-white/70"}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <p className={`text-sm font-semibold ${isToday ? "text-pine" : "text-ink"}`}>{day}</p>
-                  {isToday && <span className="text-xs px-1.5 py-0.5 rounded-full bg-pine text-chalk font-semibold">Today</span>}
-                </div>
-                {dayEvts.length === 0 ? (
-                  <p className="text-xs text-ink/30 py-1">Nothing scheduled</p>
-                ) : (
-                  <div className="space-y-1">
-                    {dayEvts.map((ev, i) => {
-                      const cfg = TYPE_CONFIG[ev.type] ?? TYPE_CONFIG.life;
-                      return (
-                        <div key={i} className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 ${cfg.viewClass}`}>
-                          <span className="text-xs font-medium truncate flex-1">{ev.title || "Untitled"}</span>
-                          {ev.time && <span className="text-xs opacity-60 flex-shrink-0 hidden sm:block">{ev.time}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
+        {savedEvents.length === 0 && competitions.length === 0 ? (
+          <div className="rounded-[20px] border border-dashed border-ink/10 py-10 text-center">
+            <p className="text-sm text-ink/40">No schedule saved yet.</p>
+            <button type="button" onClick={() => setMode("edit")}
+              className="mt-2 text-sm font-semibold text-pine hover:text-pine/70 transition-colors">
+              Add your week →
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-[24px] border border-ink/10 bg-white/80 overflow-hidden">
+            {/* ── Week strip ── */}
+            <div className="grid grid-cols-7 border-b border-ink/8">
+              {WEEK_DATES.map(({ name, dateNum }) => {
+                const isToday = name === TODAY_DAY;
+                const isSelected = name === selectedDay;
+                const dayEvts = events.filter((e) => e.day === name);
+
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setSelectedDay(name)}
+                    className={`flex flex-col items-center gap-1 py-3 transition-colors ${
+                      isSelected && !isToday ? "bg-ink/4" : ""
+                    } hover:bg-ink/4`}
+                  >
+                    <span className="text-[10px] font-semibold text-ink/45 uppercase tracking-wide">
+                      {name.slice(0, 1)}
+                    </span>
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
+                      isToday
+                        ? "bg-pine text-chalk"
+                        : isSelected
+                        ? "bg-ink/10 text-ink"
+                        : "text-ink/70"
+                    }`}>
+                      {dateNum}
+                    </span>
+                    {/* Event dots */}
+                    <div className="flex gap-0.5 h-2 items-center justify-center">
+                      {dayEvts.slice(0, 3).map((ev, i) => {
+                        const cfg = TYPE_CONFIG[ev.type] ?? TYPE_CONFIG.life;
+                        return <span key={i} className={`h-1.5 w-1.5 rounded-full ${cfg.dotClass}`} />;
+                      })}
+                      {dayEvts.length === 0 && <span className="h-1.5 w-1.5 rounded-full bg-ink/10" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Selected day detail ── */}
+            <div className="px-4 py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-sm font-semibold text-ink">
+                  {selectedMeta?.monthLabel ?? selectedDay}
+                </p>
+                {isSelectedToday && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-pine text-chalk font-semibold">Today</span>
                 )}
               </div>
-            );
-          })}
-        </div>
+
+              {selectedEvents.length === 0 ? (
+                <p className="text-sm text-ink/35 py-2">Nothing scheduled</p>
+              ) : (
+                <div className="space-y-2">
+                  {selectedEvents.map((ev, i) => {
+                    const cfg = TYPE_CONFIG[ev.type] ?? TYPE_CONFIG.life;
+                    return (
+                      <div key={i} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${cfg.viewClass}`}>
+                        <span className={`h-2 w-2 rounded-full flex-shrink-0 ${cfg.dotClass}`} />
+                        <span className="text-sm font-medium flex-1">{ev.title || "Untitled"}</span>
+                        {ev.time && (
+                          <span className="text-xs opacity-60 flex-shrink-0">{ev.time}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Competitions */}
         {competitions.length > 0 && (
@@ -309,16 +384,6 @@ export function ScheduleEditor({
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {savedEvents.length === 0 && competitions.length === 0 && (
-          <div className="rounded-[20px] border border-dashed border-ink/10 py-10 text-center">
-            <p className="text-sm text-ink/40">No schedule saved yet.</p>
-            <button type="button" onClick={() => setMode("edit")}
-              className="mt-2 text-sm font-semibold text-pine hover:text-pine/70 transition-colors">
-              Add your week →
-            </button>
           </div>
         )}
       </div>
