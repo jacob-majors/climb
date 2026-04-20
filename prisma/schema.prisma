@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  ELITE
+}
+
+enum Discipline {
+  LEAD
+  BOULDERING
+  SPEED
+  MIXED
+}
+
+enum RecoveryQuality {
+  LOW
+  MODERATE
+  GOOD
+  GREAT
+}
+
+enum StressLevel {
+  LOW
+  MODERATE
+  HIGH
+  VERY_HIGH
+}
+
+enum GradeScale {
+  YDS
+  V_SCALE
+}
+
+enum ClimbType {
+  ROUTE
+  BOULDER
+}
+
+enum TerrainStyle {
+  OVERHANG
+  VERTICAL
+  SLAB
+  COMPRESSION
+  POWERFUL
+  ENDURANCE
+  TECHNICAL
+  CRIMPY
+  PINCHY
+  SLOPERS
+  POCKETS
+}
+
+enum SessionType {
+  LIMIT_BOULDERING
+  PROJECTING
+  LEAD_ENDURANCE
+  POWER_ENDURANCE
+  ARC
+  FINGER_STRENGTH
+  RECRUITMENT_POWER
+  TECHNIQUE_DRILLS
+  FOOTWORK_DRILLS
+  MOBILITY
+  ANTAGONIST_STRENGTH
+  CORE
+  ACTIVE_RECOVERY
+  FULL_REST
+  COMPETITION
+  TEAM_PRACTICE
+}
+
+enum IntensityLevel {
+  LOW
+  MODERATE
+  HIGH
+  PEAK
+}
+
+enum SessionCompletionStatus {
+  PLANNED
+  COMPLETED
+  MODIFIED
+  SKIPPED
+}
+
+model User {
+  id                 String               @id @default(cuid())
+  clerkId            String?              @unique
+  name               String
+  age                Int
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  profile            ClimbingProfile?
+  routeEntries       RouteEntry[]
+  scheduleConstraint ScheduleConstraint?
+  competitionEvents  CompetitionEvent[]
+  trainingPlans      TrainingPlan[]
+}
+
+model ClimbingProfile {
+  id                          String          @id @default(cuid())
+  userId                      String          @unique
+  user                        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  heightCm                    Int?
+  weightKg                    Int?
+  experienceLevel             ExperienceLevel
+  primaryDiscipline           Discipline
+  flashGrade                  String?
+  redpointGrade               String?
+  onsightGrade                String?
+  boulderFlashGrade           String?
+  boulderMaxGrade             String?
+  competitionCategory         String?
+  injuryHistory               String?
+  currentPain                 String?
+  equipment                   String
+  climbingDaysPerWeek         Int
+  trainingDaysPerWeek         Int
+  sleepAverage                Float
+  recoveryQuality             RecoveryQuality
+  stressLevel                 StressLevel
+  workloadNotes               String?
+  otherSports                 String?
+  preferredTrainingFocus      String
+  athleteNotes                String?
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+}
+
+model RouteEntry {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title             String
+  grade             String
+  gradeScale        GradeScale
+  environment       String
+  climbType         ClimbType
+  styleTags         String
+  moveCount         Int?
+  cruxDifficulty    Int
+  movementType      String
+  holdTypes         String
+  mainChallenges    String
+  fallReason        String
+  feltStrong        String
+  feltWeak          String
+  pumpLevel         Int
+  confidenceLevel   Int
+  freeText          String?
+  weaknessSummary   String?
+  createdAt         DateTime    @default(now())
+}
+
+model ScheduleConstraint {
+  id                      String      @id @default(cuid())
+  userId                  String      @unique
+  user                    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolWorkSchedule      String?
+  practiceSchedule        String?
+  teamPractices           String?
+  weeklyCalendar          String?
+  calendarSourceUrl       String?
+  importedCalendarAt      DateTime?
+  trainingAvailability    String?
+  workAtGym               Boolean     @default(false)
+  workNotes               String?
+  travelDates             String?
+  restDayPreferences      String?
+  timeAvailableByDay      String
+  hardDaysRelativeToPractice String?
+  taperPreference         Boolean     @default(true)
+  recoveryNeedsAfterComp  Boolean     @default(true)
+  fatigueLevel            Int
+  recoveryScore           Int?
+  sleepScore              Int?
+  dayStrain               Float?
+  sorenessLevel           Int?
+  skinQuality             Int?
+  recentClimbingDays      Int?
+  energyLevel             Int?
+  weeklyAvailabilityNotes String?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+}
+
+model CompetitionEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  eventDate   DateTime
+  location    String?
+  discipline  Discipline
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
+model TrainingPlan {
+  id                    String            @id @default(cuid())
+  userId                String
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  startDate             DateTime
+  endDate               DateTime
+  summary               String
+  explanation           String
+  keyFocusAreas         String
+  mainWeakness          String
+  recoveryNotes         String
+  compPrepNotes         String
+  pushBackoffNotes      String
+  totalLoadScore        Int
+  createdAt             DateTime          @default(now())
+  sessions              TrainingSession[]
+}
+
+model TrainingSession {
+  id               String         @id @default(cuid())
+  trainingPlanId   String
+  trainingPlan     TrainingPlan   @relation(fields: [trainingPlanId], references: [id], onDelete: Cascade)
+  dayIndex         Int
+  dayLabel         String
+  sessionType      SessionType
+  title            String
+  durationMinutes  Int
+  warmup           String
+  mainWork         String
+  cooldown         String
+  recoveryNotes    String
+  intensity        IntensityLevel
+  whyChosen        String
+  loadScore        Int
+  completionStatus SessionCompletionStatus @default(PLANNED)
+  actualDurationMinutes Int?
+  completionNotes  String?
+  completedAt      DateTime?
+  createdAt        DateTime       @default(now())
+}

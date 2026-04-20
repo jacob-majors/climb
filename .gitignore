@@ -1,0 +1,12 @@
+.next
+node_modules
+dist
+.DS_Store
+*.log
+.env
+dev.db
+dev.db-journal
+coverage
+
+# clerk configuration (can include secrets)
+/.clerk/

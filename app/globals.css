@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(215, 197, 166, 0.45), transparent 35%),
+    radial-gradient(circle at top right, rgba(109, 138, 97, 0.15), transparent 28%),
+    #f5f1e8;
+}
+
+body {
+  min-height: 100vh;
+  color: #101418;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(41, 67, 58, 0.2);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@media print {
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+}
