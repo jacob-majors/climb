@@ -11,7 +11,8 @@ export type CalendarEntry = {
   load: CalendarLoad;
   time?: string;
   notes?: string;
-  source?: CalendarEntrySource; // external sources are synced, manual is user-authored
+  source?: CalendarEntrySource;
+  date?: string; // ISO "YYYY-MM-DD" — set for ICS/Google events to anchor to a specific week
 };
 
 const normalizedDayMap = dayNames.reduce<Record<string, string>>((acc, day) => {

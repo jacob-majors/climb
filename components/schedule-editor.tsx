@@ -201,11 +201,23 @@ function getWeekDates() {
   return dayNames.map((name, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    return { name, dateNum: d.getDate(), monthLabel: d.toLocaleDateString("en-US", { month: "long", day: "numeric" }) };
+    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { name, dateNum: d.getDate(), monthLabel: d.toLocaleDateString("en-US", { month: "long", day: "numeric" }), isoDate };
   });
 }
 
 const WEEK_DATES = getWeekDates();
+
+// Returns true if an event should be shown for a given day in the current week.
+// ICS/Google events with a date field are only shown if the date matches this week's date for that day.
+// Manual events and events without a date always show.
+function eventBelongsToDay(event: CalendarEntry, weekDate: { name: string; isoDate: string }) {
+  if (event.day !== weekDate.name) return false;
+  if (event.date && (event.source === "ics" || event.source === "google")) {
+    return event.date === weekDate.isoDate;
+  }
+  return true;
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -229,7 +241,8 @@ export function ScheduleEditor({
     events: events.filter((e) => e.day === day),
   }));
 
-  const savedEvents = events.filter((e) => e.title.trim());
+  const thisWeekEvents = WEEK_DATES.flatMap((wd) => events.filter((e) => eventBelongsToDay(e, wd)));
+  const savedEvents = thisWeekEvents.filter((e) => e.title.trim());
   const savedCompetitions = competitions.filter((c) => c.name.trim() && c.date);
 
   const timeAvailableByDay = dayNames.reduce<Record<string, number>>((acc, day) => {
@@ -268,8 +281,8 @@ export function ScheduleEditor({
   // ── VIEW MODE ────────────────────────────────────────────────────────────────
 
   if (mode === "view") {
-    const selectedEvents = events.filter((e) => e.day === selectedDay);
     const selectedMeta = WEEK_DATES.find((d) => d.name === selectedDay);
+    const selectedEvents = selectedMeta ? events.filter((e) => eventBelongsToDay(e, selectedMeta)) : [];
     const isSelectedToday = selectedDay === TODAY_DAY;
 
     return (
@@ -299,10 +312,11 @@ export function ScheduleEditor({
           <div className="rounded-[24px] border border-ink/10 bg-white/80 overflow-hidden">
             {/* ── Week strip ── */}
             <div className="grid grid-cols-7 border-b border-ink/8">
-              {WEEK_DATES.map(({ name, dateNum }) => {
+              {WEEK_DATES.map((weekDate) => {
+                const { name, dateNum } = weekDate;
                 const isToday = name === TODAY_DAY;
                 const isSelected = name === selectedDay;
-                const dayEvts = events.filter((e) => e.day === name);
+                const dayEvts = events.filter((e) => eventBelongsToDay(e, weekDate));
 
                 return (
                   <button

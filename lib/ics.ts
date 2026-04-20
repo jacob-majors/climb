@@ -147,6 +147,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
       type: "school",
       load: inferLoad("school", "school", durationHours),
       time: `${format(first.start, "h:mma")} – ${format(end, "h:mma")}`,
+      date: format(first.start, "yyyy-MM-dd"),
       source: "ics",
     });
   }
@@ -162,6 +163,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
       type,
       load: inferLoad(event.title, type, durationHours),
       time: format(event.start, "h:mma"),
+      date: format(event.start, "yyyy-MM-dd"),
       notes: [event.location, event.description].filter(Boolean).join(" • ") || undefined,
       source: "ics",
     };

@@ -10,6 +10,9 @@ export async function getActiveAthlete(userId: string) {
       routeEntries: {
         orderBy: { createdAt: "desc" },
         take: 8,
+        include: {
+          gymRoute: true,
+        },
       },
       scheduleConstraint: true,
       competitionEvents: {
@@ -21,6 +24,31 @@ export async function getActiveAthlete(userId: string) {
           sessions: {
             orderBy: { dayIndex: "asc" },
           },
+        },
+      },
+    },
+  });
+}
+
+export async function getSessionsSharedRoutes() {
+  noStore();
+  return prisma.gymRoute.findMany({
+    where: {
+      gymName: "Sessions",
+    },
+    orderBy: [
+      { gymZoneId: "asc" },
+      { updatedAt: "desc" },
+    ],
+    include: {
+      _count: {
+        select: {
+          routeEntries: true,
+        },
+      },
+      createdByUser: {
+        select: {
+          name: true,
         },
       },
     },

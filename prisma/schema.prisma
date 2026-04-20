@@ -100,10 +100,37 @@ model User {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   profile            ClimbingProfile?
+  createdGymRoutes   GymRoute[]           @relation("CreatedGymRoutes")
   routeEntries       RouteEntry[]
   scheduleConstraint ScheduleConstraint?
   competitionEvents  CompetitionEvent[]
   trainingPlans      TrainingPlan[]
+}
+
+model GymRoute {
+  id             String      @id @default(cuid())
+  gymName        String
+  gymZoneId      String
+  gymZoneLabel   String
+  title          String
+  grade          String
+  gradeScale     GradeScale
+  climbType      ClimbType
+  environment    String      @default("Indoor")
+  wallAngle      String?
+  wallHeight     String?
+  holdTypes      String?
+  movementType   String?
+  styleTags      String?
+  notes          String?
+  createdById    String?
+  createdByUser  User?       @relation("CreatedGymRoutes", fields: [createdById], references: [id], onDelete: SetNull)
+  routeEntries   RouteEntry[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([gymName, gymZoneId, title, grade, climbType])
+  @@index([gymName, gymZoneId])
 }
 
 model ClimbingProfile {
@@ -140,6 +167,11 @@ model RouteEntry {
   id                String      @id @default(cuid())
   userId            String
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gymRouteId        String?
+  gymRoute          GymRoute?   @relation(fields: [gymRouteId], references: [id], onDelete: SetNull)
+  gymName           String?
+  gymZoneId         String?
+  gymZoneLabel      String?
   title             String
   grade             String
   gradeScale        GradeScale

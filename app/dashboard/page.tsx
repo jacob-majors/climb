@@ -10,10 +10,11 @@ import {
   HeartPulse,
   MapPin,
   Mountain,
+  Play,
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { addDays, differenceInCalendarDays, formatDistanceToNowStrict, isBefore, startOfDay } from "date-fns";
+import { addDays, differenceInCalendarDays, format, formatDistanceToNowStrict, isBefore, startOfDay } from "date-fns";
 import { LoadChart } from "@/components/load-chart";
 import { ProgressRing } from "@/components/progress-ring";
 import { SectionHeading } from "@/components/section-heading";
@@ -27,6 +28,7 @@ import { redirect } from "next/navigation";
 import { dayNames, formatDate, formatSessionType, intensityClass, intensityLabel } from "@/lib/format";
 import { buildAdherenceSummary, getSessionDate, getSessionEntry, getUpcomingSession, nextOccurrenceOfDay } from "@/lib/plan-progress";
 import { getRecoveryBand, recoveryClass, recoveryLabel } from "@/lib/recovery";
+import { buildPeakForecast } from "@/lib/peak-forecast";
 import { findAvailabilityForDay, formatTrainingWindow } from "@/lib/training-availability";
 import {
   calculateSessionStrain,
@@ -590,6 +592,12 @@ export default async function DashboardPage() {
     : sessionEntry
       ? `${sessionEntry.session.loadScore}`
       : "--";
+  const peakForecast = buildPeakForecast({
+    schedule,
+    competitions: athlete.competitionEvents,
+    sessions: currentPlan?.sessions ?? [],
+    planStartDate: currentPlan?.startDate,
+  });
   const setupTasks = buildSetupTasks(athlete);
   const hasIncompleteSetup = setupTasks.some((task) => !task.done);
 
@@ -703,70 +711,76 @@ export default async function DashboardPage() {
         </form>
       </Card>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card className="space-y-5">
-          <SectionHeading
-            eyebrow="Recovery"
-            title={`${recoveryLabel(recovery.band)} • ${recovery.score}`}
-            description="Built from your survey, recent climbing days, skin, soreness, and fatigue."
-          />
-
-          <div className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold ${recoveryClass(recovery.band)}`}>
-            {recovery.band === "green" ? "Green day" : recovery.band === "yellow" ? "Yellow day" : "Red day"}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-mist p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Climbing days</p>
-              <p className="mt-2 text-lg font-semibold text-ink">{schedule.recentClimbingDays ?? "Not set"}</p>
+      {/* ── Hero: Comp countdown + peak forecast + recovery ── */}
+      <Card className="overflow-hidden p-0">
+        {nextComp ? (
+          <div className="rounded-[28px] bg-ink px-6 pt-8 pb-6 text-chalk">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-chalk/55">{nextComp.name}</p>
+            {nextComp.location ? (
+              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-chalk/45">
+                <MapPin className="h-3 w-3" />
+                {nextComp.location}
+              </p>
+            ) : null}
+            <div className="mt-5 flex items-end gap-4">
+              <div>
+                <p className="text-[4.5rem] font-black leading-none tabular-nums text-chalk">{daysUntilComp ?? "–"}</p>
+                <p className="mt-1 text-sm font-medium text-chalk/60">{daysUntilComp !== null ? countdownLabel(daysUntilComp) : "No comp date"}</p>
+              </div>
+              <div className="mb-1 text-chalk/35 text-sm font-medium">days</div>
             </div>
-            <div className="rounded-2xl bg-mist p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Skin</p>
-              <p className="mt-2 text-lg font-semibold text-ink">{schedule.skinQuality ? `${schedule.skinQuality}/10` : "Not set"}</p>
-            </div>
-            <div className="rounded-2xl bg-mist p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Soreness</p>
-              <p className="mt-2 text-lg font-semibold text-ink">{schedule.sorenessLevel ? `${schedule.sorenessLevel}/10` : "Not set"}</p>
-            </div>
-            <div className="rounded-2xl bg-mist p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Fatigue</p>
-              <p className="mt-2 text-lg font-semibold text-ink">{schedule.fatigueLevel}/10</p>
-            </div>
-          </div>
-        </Card>
 
-        <Card className="space-y-5">
-          <SectionHeading
-            eyebrow="Next Comp"
-            title={nextComp ? nextComp.name : "No competition saved"}
-            description={nextComp ? `${formatDate(nextComp.eventDate)}${nextComp.location ? ` • ${nextComp.location}` : ""}` : "Add a competition to see a countdown here."}
-          />
-
-          {nextComp ? (
-            <>
-              <div className="rounded-[28px] bg-ink px-6 py-8 text-chalk">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-chalk/70">Countdown</p>
-                <p className="mt-3 text-4xl font-semibold">{daysUntilComp}</p>
-                <p className="mt-2 text-sm text-chalk/75">{countdownLabel(daysUntilComp ?? 0)}</p>
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {/* Recovery band */}
+              <div className="rounded-2xl bg-white/8 px-3 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Recovery</p>
+                <p className={`mt-1.5 text-base font-bold ${recovery.band === "green" ? "text-emerald-400" : recovery.band === "yellow" ? "text-amber-400" : "text-red-400"}`}>
+                  {recovery.band === "green" ? "Green" : recovery.band === "yellow" ? "Yellow" : "Red"}
+                </p>
+                <p className="text-xs text-chalk/40">{recovery.score}/100</p>
               </div>
 
-              <div className="rounded-2xl bg-mist p-4">
-                <div className="flex items-start gap-3">
-                  <span className="rounded-2xl bg-clay/10 p-2.5 text-clay">
-                    <MapPin className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{nextComp.location}</p>
-                    {nextComp.notes ? <p className="mt-1 text-sm leading-6 text-ink/70">{nextComp.notes}</p> : null}
-                  </div>
-                </div>
+              {/* Peak forecast */}
+              <div className="rounded-2xl bg-white/8 px-3 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Peak</p>
+                <p className="mt-1.5 text-base font-bold text-chalk">{format(peakForecast.predictedPeakDate, "MMM d")}</p>
+                <p className="text-xs text-chalk/40">{peakForecast.confidence}% conf.</p>
               </div>
-            </>
-          ) : (
-            <p className="text-sm text-ink/70">No competition is saved yet.</p>
-          )}
-        </Card>
-      </section>
+
+              {/* Peak score */}
+              <div className="rounded-2xl bg-white/8 px-3 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Form</p>
+                <p className="mt-1.5 text-base font-bold text-chalk">{peakForecast.peakScore}/100</p>
+                <p className="text-xs text-chalk/40">peak form</p>
+              </div>
+            </div>
+
+            {/* Peak alignment note */}
+            <p className="mt-4 text-xs leading-5 text-chalk/50">{peakForecast.rationale}</p>
+          </div>
+        ) : (
+          <div className="px-6 py-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-pine/60">No competition saved</p>
+            <p className="mt-2 text-2xl font-black text-ink">Add your next comp</p>
+            <p className="mt-1 text-sm text-ink/55">Set a competition date to unlock the countdown, taper forecast, and peak alignment.</p>
+          </div>
+        )}
+
+        {/* Recovery + generate row */}
+        <div className="flex items-center justify-between gap-4 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <span className={`h-2.5 w-2.5 rounded-full ${recovery.band === "green" ? "bg-emerald-500" : recovery.band === "yellow" ? "bg-amber-400" : "bg-red-500"}`} />
+            <div>
+              <p className="text-sm font-semibold text-ink">{recoveryLabel(recovery.band)}</p>
+              <p className="text-xs text-ink/50">{readinessCue(recovery.band)}</p>
+            </div>
+          </div>
+
+          <form action={generatePlanAction}>
+            <SubmitButton label="Generate week" pendingLabel="Generating..." className="bg-pine hover:bg-ink shrink-0" />
+          </form>
+        </div>
+      </Card>
 
       {adherenceSummary ? (
         <Card className="space-y-5">
@@ -952,21 +966,22 @@ export default async function DashboardPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-                  {currentPlan ? (
-                    <Link
-                      href={`/plans/${currentPlan.id}`}
-                      className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink/90"
-                    >
-                      Open full plan
+              <Link
+                href={`/sessions/${sessionEntry.session.id}`}
+                className="inline-flex items-center gap-2 rounded-full bg-pine px-4 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink"
+              >
+                <Play className="h-4 w-4" />
+                Start session
+              </Link>
+              {currentPlan ? (
+                <Link
+                  href={`/plans/${currentPlan.id}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-ink/10 px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-pine"
+                >
+                  Full plan
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               ) : null}
-              <Link
-                href="/schedule"
-                className="inline-flex items-center gap-2 rounded-full border border-ink/10 px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-pine"
-              >
-                Open schedule
-              </Link>
             </div>
           </Card>
         ) : (
@@ -1115,6 +1130,13 @@ export default async function DashboardPage() {
                       </summary>
 
                       <div className="grid gap-3 border-t border-ink/8 p-4">
+                        <Link
+                          href={`/sessions/${item.session.id}`}
+                          className="inline-flex items-center gap-2 rounded-full bg-pine px-4 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink w-fit"
+                        >
+                          <Play className="h-4 w-4" />
+                          Start session
+                        </Link>
                         <div className="rounded-2xl bg-mist p-4">
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Why this day</p>
                           <p className="mt-2 text-sm leading-6 text-ink">{item.session.whyChosen}</p>

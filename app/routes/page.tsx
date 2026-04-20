@@ -1,4 +1,4 @@
-import { getActiveAthlete } from "@/lib/data";
+import { getActiveAthlete, getSessionsSharedRoutes } from "@/lib/data";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,7 @@ export default async function RouteAnalysisPage() {
   const userId = await getOrCreateDbUser();
   if (!userId) redirect("/sign-in");
   const athlete = await getActiveAthlete(userId);
+  const sessionsRoutes = await getSessionsSharedRoutes();
 
   if (!athlete) {
     return (
@@ -31,11 +32,30 @@ export default async function RouteAnalysisPage() {
       <SectionHeading
         eyebrow="Route analysis"
         title="Log a climb"
-        description="One question at a time. Upload a video and Claude will analyze your technique."
+        description="Tap Sessions zones, reuse shared route details when they already exist, and only go as deep as you want."
       />
 
       <Card>
-        <RouteWizard />
+        <RouteWizard
+          sessionsRoutes={sessionsRoutes.map((route) => ({
+            id: route.id,
+            gymZoneId: route.gymZoneId,
+            gymZoneLabel: route.gymZoneLabel,
+            title: route.title,
+            grade: route.grade,
+            gradeScale: route.gradeScale,
+            climbType: route.climbType,
+            environment: route.environment,
+            wallAngle: route.wallAngle,
+            wallHeight: route.wallHeight,
+            holdTypes: route.holdTypes,
+            movementType: route.movementType,
+            styleTags: route.styleTags,
+            notes: route.notes,
+            routeCount: route._count.routeEntries,
+            submittedBy: route.createdByUser?.name ?? null,
+          }))}
+        />
       </Card>
 
       {athlete.routeEntries.length > 0 && (
@@ -48,7 +68,9 @@ export default async function RouteAnalysisPage() {
                   <div>
                     <p className="font-semibold text-ink">{entry.title}</p>
                     <p className="text-sm text-ink/55 mt-0.5">
-                      {entry.grade} · {entry.environment} · {entry.climbType.toLowerCase()}
+                      {entry.grade}
+                      {entry.gymZoneLabel ? ` · ${entry.gymZoneLabel}` : ` · ${entry.environment}`}
+                      {` · ${entry.climbType.toLowerCase()}`}
                     </p>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">

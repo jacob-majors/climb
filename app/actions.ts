@@ -9,6 +9,7 @@ import { ImportedCalendarEvent, importedCompetitionEvents, importableCalendarEnt
 import { parseLocalDateInput } from "@/lib/format";
 import { fetchGoogleCalendarEvents, getCurrentGoogleAccessToken } from "@/lib/google-calendar";
 import { prisma } from "@/lib/prisma";
+import { getSessionsZoneLabel, SESSIONS_GYM_NAME } from "@/lib/sessions-map";
 import {
   availabilityMinutesByDay,
   deriveAvailabilityFromCalendar,
@@ -183,19 +184,105 @@ export async function upsertProfileAction(formData: FormData) {
 export async function saveRouteEntryAction(formData: FormData) {
   const userId = await getOrCreateDbUser();
   if (!userId) redirect("/sign-in");
+
+  const gymRouteId = text(formData, "gymRouteId") || null;
+  const gymName = text(formData, "gymName") || null;
+  const gymZoneId = text(formData, "gymZoneId") || null;
+  const gymZoneLabel = text(formData, "gymZoneLabel") || getSessionsZoneLabel(gymZoneId);
+
+  const titleInput = text(formData, "title");
+  const gradeInput = text(formData, "grade");
+  const gradeScale = text(formData, "gradeScale") as GradeScale;
+  const climbType = text(formData, "climbType") as ClimbType;
+  const environmentInput = text(formData, "environment");
+  const wallAngle = text(formData, "wallAngle") || null;
+  const wallHeight = text(formData, "wallHeight") || null;
+  const holdTypes = text(formData, "holdTypes");
+  const movementType = text(formData, "movementType");
+  const styleTags = text(formData, "styleTags");
+
+  const existingGymRoute = gymRouteId
+    ? await prisma.gymRoute.findUnique({
+        where: { id: gymRouteId },
+      })
+    : null;
+
+  let sharedRouteId = existingGymRoute?.id ?? null;
+
+  if (existingGymRoute) {
+    await prisma.gymRoute.update({
+      where: { id: existingGymRoute.id },
+      data: {
+        wallAngle: wallAngle || undefined,
+        wallHeight: wallHeight || undefined,
+        holdTypes: holdTypes && holdTypes !== "Not specified" ? holdTypes : undefined,
+        movementType: movementType && movementType !== "Not specified" ? movementType : undefined,
+        styleTags: styleTags && styleTags !== "[]" ? styleTags : undefined,
+        notes: text(formData, "mainChallenges") || undefined,
+      },
+    });
+  }
+
+  if (!sharedRouteId && gymName && gymZoneId && titleInput && gradeInput && climbType) {
+    const sharedRoute = await prisma.gymRoute.upsert({
+      where: {
+        gymName_gymZoneId_title_grade_climbType: {
+          gymName,
+          gymZoneId,
+          title: titleInput,
+          grade: gradeInput,
+          climbType,
+        },
+      },
+      create: {
+        gymName,
+        gymZoneId,
+        gymZoneLabel: gymZoneLabel ?? getSessionsZoneLabel(gymZoneId) ?? gymZoneId,
+        title: titleInput,
+        grade: gradeInput,
+        gradeScale,
+        climbType,
+        environment: environmentInput || (gymName === SESSIONS_GYM_NAME ? "Indoor" : "Gym"),
+        wallAngle,
+        wallHeight,
+        holdTypes: holdTypes || null,
+        movementType: movementType || null,
+        styleTags: styleTags || null,
+        notes: text(formData, "mainChallenges") || text(formData, "freeText") || null,
+        createdById: userId,
+      },
+      update: {
+        gradeScale,
+        environment: environmentInput || undefined,
+        wallAngle: wallAngle ?? undefined,
+        wallHeight: wallHeight ?? undefined,
+        holdTypes: holdTypes || undefined,
+        movementType: movementType || undefined,
+        styleTags: styleTags || undefined,
+        notes: text(formData, "mainChallenges") || text(formData, "freeText") || undefined,
+      },
+    });
+
+    sharedRouteId = sharedRoute.id;
+  }
+
   await prisma.routeEntry.create({
     data: {
       userId,
-      title: text(formData, "title"),
-      grade: text(formData, "grade"),
-      gradeScale: text(formData, "gradeScale") as GradeScale,
-      environment: text(formData, "environment"),
-      climbType: text(formData, "climbType") as ClimbType,
-      styleTags: text(formData, "styleTags"),
+      gymRouteId: sharedRouteId,
+      gymName,
+      gymZoneId,
+      gymZoneLabel,
+      title: titleInput || existingGymRoute?.title || "Unnamed climb",
+      grade: gradeInput || existingGymRoute?.grade || "Unknown",
+      gradeScale: gradeScale || existingGymRoute?.gradeScale || GradeScale.YDS,
+      environment: environmentInput || existingGymRoute?.environment || "Indoor",
+      climbType: climbType || existingGymRoute?.climbType || ClimbType.ROUTE,
+      styleTags: styleTags || existingGymRoute?.styleTags || JSON.stringify([]),
       moveCount: intValue(formData, "moveCount") || null,
       cruxDifficulty: intValue(formData, "cruxDifficulty", 5),
-      movementType: text(formData, "movementType"),
-      holdTypes: text(formData, "holdTypes"),
+      movementType: movementType || existingGymRoute?.movementType || "Not specified",
+      holdTypes: holdTypes || existingGymRoute?.holdTypes || "Not specified",
       mainChallenges: text(formData, "mainChallenges"),
       fallReason: text(formData, "fallReason"),
       feltStrong: text(formData, "feltStrong"),
@@ -204,8 +291,8 @@ export async function saveRouteEntryAction(formData: FormData) {
       confidenceLevel: intValue(formData, "confidenceLevel", 5),
       freeText: text(formData, "freeText") || null,
       weaknessSummary: text(formData, "weaknessSummary") || null,
-      wallAngle: text(formData, "wallAngle") || null,
-      wallHeight: text(formData, "wallHeight") || null,
+      wallAngle: wallAngle || existingGymRoute?.wallAngle || null,
+      wallHeight: wallHeight || existingGymRoute?.wallHeight || null,
     },
   });
 
@@ -642,6 +729,74 @@ export async function updateQuickCheckInAction(formData: FormData) {
       energyLevel: maybeInt("energyLevel") ?? existing.energyLevel,
     },
   });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function addCompetitionAction(formData: FormData) {
+  const userId = await getOrCreateDbUser();
+  if (!userId) redirect("/sign-in");
+  const dateStr = text(formData, "date");
+  if (!dateStr) redirect("/schedule");
+  await prisma.competitionEvent.create({
+    data: {
+      userId,
+      name: text(formData, "name") || "Competition",
+      eventDate: new Date(dateStr + "T12:00:00"),
+      location: text(formData, "location") || null,
+      discipline: (text(formData, "discipline") as Discipline) || Discipline.MIXED,
+      notes: text(formData, "notes") || null,
+    },
+  });
+  revalidatePath("/dashboard");
+  revalidatePath("/schedule");
+  redirect("/dashboard");
+}
+
+export async function logSessionSurveyAction(formData: FormData) {
+  const userId = await getOrCreateDbUser();
+  if (!userId) redirect("/sign-in");
+  const sessionId = text(formData, "sessionId");
+  const completionStatus = (text(formData, "completionStatus") || "COMPLETED") as CompletionStatus;
+  const actualMinutes = text(formData, "actualDurationMinutes");
+  const completionNotes = text(formData, "completionNotes") || null;
+
+  if (sessionId) {
+    const parsedDuration = actualMinutes ? Number(actualMinutes) : undefined;
+    const safeDuration = Number.isFinite(parsedDuration) ? Math.max(0, Math.round(parsedDuration as number)) : undefined;
+    const session = await prisma.trainingSession.findUnique({ where: { id: sessionId } });
+    if (session) {
+      await prisma.trainingSession.update({
+        where: { id: sessionId },
+        data: {
+          completionStatus,
+          actualDurationMinutes: completionStatus === "SKIPPED" ? null : safeDuration ?? session.durationMinutes,
+          completionNotes,
+          completedAt: completionStatus === "PLANNED" ? null : new Date(),
+        },
+      });
+    }
+  }
+
+  // Also update recovery check-in
+  const existing = await prisma.scheduleConstraint.findUnique({ where: { userId } });
+  if (existing) {
+    const maybeInt = (key: string) => {
+      const raw = text(formData, key);
+      if (!raw) return undefined;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    await prisma.scheduleConstraint.update({
+      where: { userId },
+      data: {
+        skinQuality: maybeInt("skinQuality") ?? existing.skinQuality,
+        sorenessLevel: maybeInt("sorenessLevel") ?? existing.sorenessLevel,
+        energyLevel: maybeInt("energyLevel") ?? existing.energyLevel,
+      },
+    });
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
