@@ -5,6 +5,35 @@ import { ClimbType, GradeScale } from "@prisma/client";
 import { saveRouteEntryAction } from "@/app/actions";
 import type { ClimbAnalysis } from "@/app/api/analyze-climb/route";
 
+// ── Route colors ─────────────────────────────────────────────────────────────
+
+const ROUTE_COLORS = [
+  { name: "Red",     hex: "#ef4444" },
+  { name: "Blue",    hex: "#3b82f6" },
+  { name: "Green",   hex: "#22c55e" },
+  { name: "Yellow",  hex: "#eab308" },
+  { name: "Orange",  hex: "#f97316" },
+  { name: "Purple",  hex: "#a855f7" },
+  { name: "Pink",    hex: "#ec4899" },
+  { name: "Black",   hex: "#1f2937" },
+  { name: "White",   hex: "#f1f5f9", border: true },
+  { name: "Gray",    hex: "#9ca3af" },
+  { name: "Brown",   hex: "#92400e" },
+  { name: "Teal",    hex: "#14b8a6" },
+  { name: "Lime",    hex: "#84cc16" },
+  { name: "Navy",    hex: "#1e3a5f" },
+  { name: "Maroon",  hex: "#7f1d1d" },
+  { name: "Coral",   hex: "#fb7185" },
+  { name: "Gold",    hex: "#f59e0b" },
+  { name: "Silver",  hex: "#94a3b8" },
+] as const;
+
+type RouteColor = (typeof ROUTE_COLORS)[number];
+
+function normalize(s: string) {
+  return s.toLowerCase().replace(/[^a-z]/g, "");
+}
+
 // ── Option lists ──────────────────────────────────────────────────────────────
 
 const GRADE_SCALES = Object.values(GradeScale);
@@ -193,12 +222,35 @@ function ScalePicker({
 export function RouteWizard() {
   const [stepIndex, setStepIndex] = useState(0);
   const [data, setData] = useState<WizardData>(defaultData);
+  const [colorTags, setColorTags] = useState<string[]>([]);
+  const [colorInput, setColorInput] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [animKey, setAnimKey] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const colorInputRef = useRef<HTMLInputElement>(null);
+
+  // keep data.title in sync with colorTags
+  function syncTitle(tags: string[]) {
+    setColorTags(tags);
+    setData((d) => ({ ...d, title: tags.join(" ") || "Unnamed" }));
+  }
+
+  function addColorTag(name: string) {
+    if (colorTags.includes(name)) return;
+    syncTitle([...colorTags, name]);
+    setColorInput("");
+  }
+
+  function removeColorTag(name: string) {
+    syncTitle(colorTags.filter((t) => t !== name));
+  }
+
+  const colorSuggestion: RouteColor | null = colorInput.trim()
+    ? ROUTE_COLORS.find((c) => normalize(c.name).startsWith(normalize(colorInput))) ?? null
+    : null;
 
   const currentStep = STEPS[stepIndex];
   const progress = (stepIndex / STEPS.length) * 100;
@@ -281,7 +333,8 @@ export function RouteWizard() {
 
   // Summary chips for answered steps
   const chips: string[] = [];
-  if (stepIndex > 0 && data.title) chips.push(data.title);
+  if (stepIndex > 0 && colorTags.length > 0) chips.push(colorTags.join(" · "));
+  else if (stepIndex > 0) chips.push("Unnamed");
   if (stepIndex > 1 && data.grade) chips.push(`${data.grade} ${data.gradeScale.replace(/_/g, " ")}`);
   if (stepIndex > 2) chips.push(data.climbType === ClimbType.BOULDER ? "Boulder" : "Route");
   if (stepIndex > 3) chips.push(data.environment);
@@ -326,9 +379,7 @@ export function RouteWizard() {
   // ── Step renderer ─────────────────────────────────────────────────────────
 
   const showNextBtn = ["name", "grade", "holds", "style", "strong", "weak", "notes"].includes(currentStep);
-  const canNext = currentStep === "name" ? data.title.trim().length > 0
-    : currentStep === "grade" ? data.grade.trim().length > 0
-    : true;
+  const canNext = currentStep === "grade" ? data.grade.trim().length > 0 : true;
 
   return (
     <div className="space-y-4">
@@ -355,12 +406,84 @@ export function RouteWizard() {
           <p className="mt-1 text-xl font-semibold text-ink">{stepQuestion(currentStep)}</p>
         </div>
 
-        {/* ── name ── */}
+        {/* ── name (color picker) ── */}
         {currentStep === "name" && (
-          <input autoFocus value={data.title} onChange={(e) => set("title", e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && data.title.trim() && advance()}
-            placeholder="Route or problem name"
-            className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-4 text-base outline-none focus:border-pine focus:ring-2 focus:ring-pine/15 placeholder:text-ink/30" />
+          <div className="space-y-4">
+            {/* Color swatch grid */}
+            <div className="grid grid-cols-6 gap-2">
+              {ROUTE_COLORS.map((color) => {
+                const active = colorTags.includes(color.name);
+                return (
+                  <button
+                    key={color.name}
+                    type="button"
+                    onClick={() => active ? removeColorTag(color.name) : addColorTag(color.name)}
+                    title={color.name}
+                    className="relative flex flex-col items-center gap-1 group"
+                  >
+                    <span
+                      className={`h-10 w-10 rounded-full transition-all active:scale-90 ${
+                        active ? "ring-2 ring-offset-2 ring-pine scale-110 shadow-md" : "hover:scale-105"
+                      } ${"border" in color ? "border border-ink/15" : ""}`}
+                      style={{ backgroundColor: color.hex }}
+                    />
+                    <span className="text-[10px] text-ink/50 leading-none">{color.name}</span>
+                    {active && (
+                      <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-pine text-chalk text-[8px] font-bold flex items-center justify-center">✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Tag input */}
+            <div
+              className="flex flex-wrap items-center gap-2 min-h-[52px] rounded-2xl border border-ink/10 bg-white px-3 py-2.5 focus-within:border-pine focus-within:ring-2 focus-within:ring-pine/15 cursor-text"
+              onClick={() => colorInputRef.current?.focus()}
+            >
+              {colorTags.map((tag) => {
+                const color = ROUTE_COLORS.find((c) => c.name === tag);
+                return (
+                  <span key={tag} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white"
+                    style={{ backgroundColor: color?.hex ?? "#9ca3af" }}>
+                    {tag}
+                    <button type="button" onClick={(e) => { e.stopPropagation(); removeColorTag(tag); }}
+                      className="opacity-70 hover:opacity-100 leading-none">×</button>
+                  </span>
+                );
+              })}
+              <div className="relative flex-1 min-w-[80px]">
+                <input
+                  ref={colorInputRef}
+                  autoFocus
+                  value={colorInput}
+                  onChange={(e) => setColorInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.key === " " || e.key === "Enter") && colorSuggestion) {
+                      e.preventDefault();
+                      addColorTag(colorSuggestion.name);
+                    } else if (e.key === "Backspace" && !colorInput && colorTags.length > 0) {
+                      removeColorTag(colorTags[colorTags.length - 1]);
+                    }
+                  }}
+                  placeholder={colorTags.length === 0 ? "Type a color, space to add…" : ""}
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-ink/30"
+                />
+                {/* Inline autocomplete ghost text */}
+                {colorSuggestion && colorInput && (
+                  <span className="pointer-events-none absolute inset-0 flex items-center text-sm">
+                    <span className="invisible">{colorInput}</span>
+                    <span className="text-ink/30">{colorSuggestion.name.slice(colorInput.length)}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+            {colorSuggestion && colorInput && (
+              <p className="text-xs text-ink/40 px-1">
+                Press <kbd className="rounded border border-ink/10 bg-ink/5 px-1 py-0.5 text-xs">Space</kbd> to add <strong>{colorSuggestion.name}</strong>
+              </p>
+            )}
+          </div>
         )}
 
         {/* ── grade ── */}
@@ -555,7 +678,7 @@ export function RouteWizard() {
 
 function stepQuestion(step: StepId): string {
   switch (step) {
-    case "name":       return "What did you climb?";
+    case "name":       return "What color was the route?";
     case "grade":      return "What was the grade?";
     case "type":       return "Boulder or route?";
     case "env":        return "Indoor or outdoor?";

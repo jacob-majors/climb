@@ -24,15 +24,27 @@ function normalizeDay(value: string) {
   return normalizedDayMap[value.trim().toLowerCase()] ?? null;
 }
 
-function normalizeType(value: string): CalendarEntryType {
-  const raw = value.trim().toLowerCase();
-  if (raw.includes("practice")) return "practice";
-  if (raw.includes("work")) return "work";
-  if (raw.includes("comp")) return "competition";
-  if (raw.includes("travel")) return "travel";
-  if (raw.includes("recover")) return "recovery";
-  if (raw.includes("climb")) return "climbing";
-  return "life";
+function includesAny(source: string, needles: string[]) {
+  return needles.some((needle) => source.includes(needle));
+}
+
+export function inferCalendarEntryType(title: string, hint = ""): CalendarEntryType {
+  const source = `${title} ${hint}`.trim().toLowerCase();
+
+  if (includesAny(source, ["practice", "training", "team session"])) return "practice";
+  if (includesAny(source, ["work", "shift", "coach", "setting"])) return "work";
+  if (includesAny(source, ["class", "lecture", "school", "period", "exam", "seminar", "study hall"])) return "school";
+  if (includesAny(source, ["travel", "flight", "drive", "trip"])) return "travel";
+  if (includesAny(source, ["recover", "recovery", "rest", "mobility"])) return "recovery";
+  if (includesAny(source, ["competition", "qualifier", "qualifying", "divisional", "divisionals", "final", "finals", "championship", "scramble", "comp "])) {
+    return "competition";
+  }
+  if (includesAny(source, ["climb", "climbing", "boulder", "lead", "board session"])) return "climbing";
+  return "practice";
+}
+
+function normalizeType(value: string, title = ""): CalendarEntryType {
+  return inferCalendarEntryType(title, value);
 }
 
 function normalizeLoad(value: string): CalendarLoad {
@@ -68,7 +80,7 @@ export function parseWeeklyCalendar(raw: string | null | undefined): CalendarEnt
       return {
         day,
         title,
-        type: normalizeType(typeRaw),
+        type: normalizeType(typeRaw, title),
         load: normalizeLoad(loadRaw),
         time: time || undefined,
         notes: notes || undefined,

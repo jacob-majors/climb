@@ -1,5 +1,5 @@
 import { addDays, format, isAfter, isBefore, startOfDay } from "date-fns";
-import { CalendarEntry, CalendarEntryType } from "@/lib/calendar";
+import { CalendarEntry, CalendarEntryType, inferCalendarEntryType } from "@/lib/calendar";
 import { dayNames } from "@/lib/format";
 
 export type ImportedCalendarEvent = {
@@ -92,20 +92,7 @@ export function parseIcs(text: string) {
 }
 
 function inferType(title: string, description?: string): CalendarEntryType {
-  const source = `${title} ${description ?? ""}`.toLowerCase();
-  if (source.includes("comp") || source.includes("qualifier") || source.includes("scramble")) return "competition";
-  if (source.includes("work") || source.includes("shift") || source.includes("coach") || source.includes("setting")) return "work";
-  if (source.includes("practice") || source.includes("training")) return "practice";
-  if (
-    source.includes("class") || source.includes("lecture") || source.includes("school") ||
-    source.includes("period") || source.includes("lab ") || source.includes("exam") ||
-    source.includes("test") || source.includes("seminar") || source.includes("homework") ||
-    source.includes("study hall") || source.includes("ap ") || source.includes("period ")
-  ) return "school";
-  if (source.includes("travel") || source.includes("flight")) return "travel";
-  if (source.includes("mobility") || source.includes("recovery") || source.includes("rest")) return "recovery";
-  if (source.includes("climb") || source.includes("boulder") || source.includes("lead")) return "climbing";
-  return "life";
+  return inferCalendarEntryType(title, description ?? "");
 }
 
 function inferLoad(title: string, type: CalendarEntryType, durationHours: number) {

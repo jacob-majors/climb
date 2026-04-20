@@ -81,7 +81,7 @@ const TODAY_DAY = new Date().toLocaleDateString("en-US", { weekday: "long" });
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function emptyEvent(day: string): CalendarEntry {
-  return { day, title: "", type: "life", load: "low", time: "", notes: "", source: "manual" };
+  return { day, title: "", type: "practice", load: "low", time: "", notes: "", source: "manual" };
 }
 
 function emptyCompetition(): CompetitionDraft {
