@@ -284,9 +284,20 @@ function upcomingAppearance(type: UpcomingItem["type"]) {
 }
 
 export default async function DashboardPage() {
-  const userId = await getOrCreateDbUser();
+  let userId: string | null = null;
+  try {
+    userId = await getOrCreateDbUser();
+  } catch (err) {
+    return <Card><p className="text-sm text-red-600 font-mono">Auth error: {String(err)}</p></Card>;
+  }
   if (!userId) redirect("/sign-in");
-  const athlete = await getActiveAthlete(userId);
+
+  let athlete;
+  try {
+    athlete = await getActiveAthlete(userId);
+  } catch (err) {
+    return <Card><p className="text-sm text-red-600 font-mono">DB error: {String(err)}</p></Card>;
+  }
 
   if (!athlete || !athlete.profile || !athlete.scheduleConstraint) {
     return (
