@@ -1,4 +1,4 @@
-import { importCalendarAction, refreshCalendarAction, saveScheduleAction } from "@/app/actions";
+import { refreshCalendarAction, saveScheduleAction } from "@/app/actions";
 import { parseWeeklyCalendar } from "@/lib/calendar";
 import { CalendarLinkManager } from "@/components/calendar-link-manager";
 import { ScheduleEditor } from "@/components/schedule-editor";
@@ -93,22 +93,11 @@ export default async function SchedulePage() {
           <span className="text-ink/40 text-xs group-open:rotate-180 transition-transform">▼</span>
         </summary>
         <div className="border-t border-ink/8 px-4 pb-4 pt-3">
-          <form action={importCalendarAction} className="space-y-3">
-            <input type="hidden" name="userId" value={athlete.id} />
-            <Field
-              label="ICS links"
-              hint="One link per line — Google Calendar, Apple Calendar, school portal, Outlook. Paste the .ics export URL."
-            >
-              <textarea
-                name="calendarUrls"
-                defaultValue={schedule?.calendarSourceUrl ?? ""}
-                rows={3}
-                placeholder={"https://calendar.google.com/calendar/ical/…\nhttps://school-calendar.example.com/…"}
-                className="w-full rounded-xl border border-ink/10 bg-mist/30 px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15 resize-none"
-              />
-            </Field>
-            <SubmitButton label={hasCalendar ? "Save and sync" : "Connect calendar"} pendingLabel="Importing…" />
-          </form>
+          <CalendarLinkManager
+            userId={athlete.id}
+            initialUrls={schedule?.calendarSourceUrl?.split("\n").filter(Boolean) ?? []}
+            hasCalendar={hasCalendar}
+          />
         </div>
       </details>
 
