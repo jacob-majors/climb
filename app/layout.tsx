@@ -4,8 +4,8 @@ import "@/app/globals.css";
 import { Nav } from "@/components/nav";
 
 export const metadata: Metadata = {
-  title: "Climb Planner",
-  description: "A climbing-specific weekly planner for competition and performance athletes.",
+  title: "climb.",
+  description: "climb. is a climbing-specific weekly planner for competition and performance athletes.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

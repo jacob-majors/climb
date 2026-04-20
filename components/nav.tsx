@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Show, UserButton, SignInButton } from "@clerk/nextjs";
 import { CalendarDays, LayoutDashboard, Mountain, UserRound } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 
 const links = [
   { href: "/dashboard", label: "Dashboard",      icon: LayoutDashboard },
@@ -16,6 +17,10 @@ export function Nav() {
 
   return (
     <>
+      <div className="fixed top-4 left-4 z-40">
+        <BrandMark />
+      </div>
+
       {/* Top-right: profile link + Clerk user button */}
       <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
         <Show when="signed-in">

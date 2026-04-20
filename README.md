@@ -1,6 +1,6 @@
-# Climb Planner
+# climb.
 
-Climb Planner is a climbing-specific weekly training planner aimed at youth competition climbers and serious performance athletes. It combines athlete profile data, route analysis, schedule constraints, competition timing, and recovery context to generate a realistic weekly plan with readable daily sessions.
+climb. is a climbing-specific weekly training planner aimed at youth competition climbers and serious performance athletes. It combines athlete profile data, route analysis, schedule constraints, competition timing, and recovery context to generate a realistic weekly plan with readable daily sessions.
 
 ## Stack
 
