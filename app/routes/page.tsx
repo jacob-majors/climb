@@ -13,11 +13,26 @@ function parseStyleTags(raw: string) {
   }
 }
 
-export default async function RouteAnalysisPage() {
+export default async function RouteAnalysisPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const userId = await getOrCreateDbUser();
   if (!userId) redirect("/sign-in");
   const athlete = await getActiveAthlete(userId);
   const sessionsRoutes = await getSessionsSharedRoutes();
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const sessionPrefill = {
+    sourceSessionId: String(resolvedSearchParams.sourceSessionId || ""),
+    sourceSessionTitle: String(resolvedSearchParams.sourceSessionTitle || ""),
+    sourceSessionType: String(resolvedSearchParams.sourceSessionType || ""),
+    sourceDay: String(resolvedSearchParams.sourceDay || ""),
+    sourceStart: String(resolvedSearchParams.sourceStart || ""),
+    sourceEnd: String(resolvedSearchParams.sourceEnd || ""),
+    sourceWindow: String(resolvedSearchParams.sourceWindow || ""),
+    sourceCompletedAt: String(resolvedSearchParams.sourceCompletedAt || ""),
+  };
 
   if (!athlete) {
     return (
@@ -37,6 +52,7 @@ export default async function RouteAnalysisPage() {
 
       <Card>
         <RouteWizard
+          sessionPrefill={sessionPrefill}
           sessionsRoutes={sessionsRoutes.map((route) => ({
             id: route.id,
             gymZoneId: route.gymZoneId,

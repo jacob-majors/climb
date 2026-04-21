@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ClimbType, GradeScale } from "@prisma/client";
 import { saveRouteEntryAction } from "@/app/actions";
 import type { ClimbAnalysis } from "@/app/api/analyze-climb/route";
@@ -271,6 +271,17 @@ type WizardData = {
   gymZoneLabel: string;
   gymRouteId: string;
   detailLevel: DetailLevel;
+};
+
+type SessionPrefill = {
+  sourceSessionId: string;
+  sourceSessionTitle: string;
+  sourceSessionType: string;
+  sourceDay: string;
+  sourceStart: string;
+  sourceEnd: string;
+  sourceWindow: string;
+  sourceCompletedAt: string;
 };
 
 const defaultData: WizardData = {
@@ -544,9 +555,30 @@ function detailLabel(level: DetailLevel) {
   return "Standard log";
 }
 
-export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSharedRoute[] }) {
+function buildSessionNote(prefill?: SessionPrefill) {
+  if (!prefill?.sourceSessionTitle) return "";
+
+  const parts = [
+    prefill.sourceSessionTitle,
+    prefill.sourceWindow || "",
+    prefill.sourceStart && prefill.sourceEnd ? `${prefill.sourceStart}-${prefill.sourceEnd}` : "",
+  ].filter(Boolean);
+
+  return `Logged after ${parts.join(" • ")}`;
+}
+
+export function RouteWizard({
+  sessionsRoutes,
+  sessionPrefill,
+}: {
+  sessionsRoutes: RouteWizardSharedRoute[];
+  sessionPrefill?: SessionPrefill;
+}) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [data, setData] = useState<WizardData>(defaultData);
+  const [data, setData] = useState<WizardData>(() => ({
+    ...defaultData,
+    notes: buildSessionNote(sessionPrefill),
+  }));
   const [colorTags, setColorTags] = useState<string[]>([]);
   const [colorInput, setColorInput] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -811,6 +843,12 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
 
   const gradeOptions = data.climbType === ClimbType.BOULDER ? V_SCALE_GRADES : YDS_GRADES;
 
+  useEffect(() => {
+    const note = buildSessionNote(sessionPrefill);
+    if (!note) return;
+    setData((current) => (current.notes ? current : { ...current, notes: note }));
+  }, [sessionPrefill]);
+
   const canNext = (() => {
     if (!currentStep) return false;
     switch (currentStep) {
@@ -826,6 +864,17 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
   if (isDone) {
     return (
       <div className="animate-slide-up space-y-4">
+        {sessionPrefill?.sourceSessionTitle && (
+          <div className="rounded-[20px] border border-pine/15 bg-pine/5 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">From session</p>
+            <p className="mt-2 text-sm leading-6 text-ink">
+              {sessionPrefill.sourceSessionTitle}
+              {sessionPrefill.sourceWindow ? ` • ${sessionPrefill.sourceWindow}` : ""}
+              {sessionPrefill.sourceStart && sessionPrefill.sourceEnd ? ` • ${sessionPrefill.sourceStart}-${sessionPrefill.sourceEnd}` : ""}
+            </p>
+            <p className="mt-1 text-xs text-ink/55">Your route log already includes this session context so input is faster.</p>
+          </div>
+        )}
         <div className="space-y-3 rounded-[20px] border border-ink/10 bg-white/85 p-4">
           <p className="text-sm font-semibold text-ink">Ready to save</p>
           <div className="flex flex-wrap gap-1.5">
@@ -878,6 +927,16 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
 
   return (
     <div className="space-y-4">
+      {sessionPrefill?.sourceSessionTitle && (
+        <div className="rounded-[20px] border border-pine/15 bg-pine/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Logging after session</p>
+          <p className="mt-2 text-sm leading-6 text-ink">
+            {sessionPrefill.sourceSessionTitle}
+            {sessionPrefill.sourceWindow ? ` • ${sessionPrefill.sourceWindow}` : ""}
+            {sessionPrefill.sourceStart && sessionPrefill.sourceEnd ? ` • ${sessionPrefill.sourceStart}-${sessionPrefill.sourceEnd}` : ""}
+          </p>
+        </div>
+      )}
       <div className="h-1 w-full overflow-hidden rounded-full bg-ink/8">
         <div className="h-full rounded-full bg-pine transition-all duration-300 ease-out" style={{ width: `${progress}%` }} />
       </div>

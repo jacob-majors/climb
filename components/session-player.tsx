@@ -14,6 +14,9 @@ type SessionData = {
   mainWork: string;
   cooldown: string;
   durationMinutes: number;
+  scheduledWindowLabel?: string | null;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
   recoveryNotes: string;
   whyChosen: string;
   coach: {
@@ -24,13 +27,13 @@ type SessionData = {
   };
 };
 
-const SECTIONS = ["warmup", "main", "cooldown", "survey"] as const;
+const SECTIONS = ["overview", "warmup", "main", "survey"] as const;
 type SectionId = (typeof SECTIONS)[number];
 
 const SECTION_LABELS: Record<SectionId, string> = {
+  overview: "Overview",
   warmup: "Warm-up",
-  main: "Main Work",
-  cooldown: "Cool-down",
+  main: "Main work",
   survey: "How did it go?",
 };
 
@@ -43,6 +46,30 @@ function HangTimer() {
   const [remaining, setRemaining] = useState(7);
   const [sets, setSets] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+
+  function beep(duration = 0.18, frequency = 880) {
+    if (typeof window === "undefined") return;
+    const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = audioRef.current ?? new AudioCtx();
+    audioRef.current = ctx;
+
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = frequency;
+    gain.gain.value = 0.0001;
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    oscillator.start(now);
+    oscillator.stop(now + duration);
+  }
 
   function clearTimer() {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -50,6 +77,7 @@ function HangTimer() {
   }
 
   function start() {
+    beep(0.12, 620);
     setPhase("hang");
     setRemaining(hangSec);
     clearTimer();
@@ -57,6 +85,7 @@ function HangTimer() {
       setRemaining((r) => {
         if (r <= 1) {
           clearTimer();
+          beep(0.18, 980);
           setPhase("rest");
           setRemaining(restSec);
           setSets((s) => s + 1);
@@ -64,6 +93,7 @@ function HangTimer() {
             setRemaining((r2) => {
               if (r2 <= 1) {
                 clearTimer();
+                beep(0.22, 720);
                 setPhase("idle");
                 return hangSec;
               }
@@ -83,7 +113,10 @@ function HangTimer() {
     setRemaining(hangSec);
   }
 
-  useEffect(() => () => clearTimer(), []);
+  useEffect(() => () => {
+    clearTimer();
+    audioRef.current?.close().catch(() => undefined);
+  }, []);
 
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
@@ -93,7 +126,7 @@ function HangTimer() {
     <div className="rounded-[20px] border border-ink/10 bg-white p-4 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-ink">Hangboard timer</p>
-        <span className="text-xs text-ink/40">{sets} set{sets !== 1 ? "s" : ""} done</span>
+        <span className="text-xs text-ink/40">{sets} set{sets !== 1 ? "s" : ""} done • beep cues on</span>
       </div>
 
       {/* Big time display */}
@@ -173,8 +206,19 @@ export function SessionPlayer({ session }: { session: SessionData }) {
   });
 
   const currentSection = SECTIONS[sectionIndex];
-  const hasHangboard = /hang(board)?|crimp hang/i.test(session.warmup);
+  const hasHangboard = session.durationMinutes > 0;
   const startX = useRef<number | null>(null);
+
+  function formatClock(value?: string | null) {
+    if (!value) return null;
+    const [hoursRaw, minutesRaw] = value.split(":");
+    const hours = Number(hoursRaw);
+    const minutes = Number(minutesRaw);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
+    const suffix = hours >= 12 ? "PM" : "AM";
+    const twelve = hours % 12 || 12;
+    return `${twelve}:${String(minutes).padStart(2, "0")} ${suffix}`;
+  }
 
   // Swipe to advance
   function handleTouchStart(e: React.TouchEvent) {
@@ -204,9 +248,9 @@ export function SessionPlayer({ session }: { session: SessionData }) {
   }
 
   const sectionContent: Record<SectionId, string> = {
+    overview: "",
     warmup: session.warmup,
     main: session.mainWork,
-    cooldown: session.cooldown,
     survey: "",
   };
 
@@ -240,7 +284,38 @@ export function SessionPlayer({ session }: { session: SessionData }) {
           {SECTIONS.indexOf(currentSection) + 1} / {SECTIONS.length} · {SECTION_LABELS[currentSection]}
         </p>
 
-        {currentSection !== "survey" && (
+        {currentSection === "overview" && (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[18px] border border-pine/10 bg-pine/5 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">Today</p>
+                <p className="mt-2 text-sm leading-6 text-ink">
+                  {session.scheduledStartTime && session.scheduledEndTime
+                    ? `${session.scheduledWindowLabel || "Scheduled"} • ${formatClock(session.scheduledStartTime)}-${formatClock(session.scheduledEndTime)}`
+                    : `${session.durationMinutes} minute session`}
+                </p>
+              </div>
+              <div className="rounded-[18px] border border-ink/10 bg-white p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">Flow</p>
+                <p className="mt-2 text-sm leading-6 text-ink">
+                  Hangboard activation, advanced warm-up, main activity, then route analysis.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-[20px] border border-ink/10 bg-white/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Session overview</p>
+              <div className="mt-3 space-y-3 text-sm text-ink/75">
+                <p><span className="font-semibold text-ink">Why this session:</span> {session.whyChosen}</p>
+                <p><span className="font-semibold text-ink">Goal:</span> {session.coach.goal}</p>
+                <p><span className="font-semibold text-ink">Pacing:</span> {session.coach.pacing}</p>
+                <p><span className="font-semibold text-ink">Win:</span> {session.coach.win}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentSection !== "survey" && currentSection !== "overview" && (
           <>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[18px] border border-pine/10 bg-pine/5 p-4">
@@ -253,13 +328,40 @@ export function SessionPlayer({ session }: { session: SessionData }) {
               </div>
             </div>
 
-            <div className="rounded-[20px] bg-white/80 border border-ink/10 p-4">
-              <p className="text-base leading-7 text-ink whitespace-pre-line">
-                {sectionContent[currentSection]}
-              </p>
-            </div>
+            {currentSection === "warmup" && hasHangboard && (
+              <>
+                <div className="rounded-[20px] border border-clay/10 bg-clay/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-clay">1. Hangboard warm-up</p>
+                  <p className="mt-2 text-sm leading-6 text-ink/75">
+                    Start with a short finger activation block before the bigger warm-up. Use the built-in timer and let the beeps cue each switch.
+                  </p>
+                </div>
+                <HangTimer />
+                <div className="rounded-[20px] bg-white/80 border border-ink/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">2. Advanced warm-up</p>
+                  <p className="mt-2 text-base leading-7 text-ink whitespace-pre-line">
+                    {sectionContent[currentSection]}
+                  </p>
+                </div>
+              </>
+            )}
 
-            {currentSection === "warmup" && hasHangboard && <HangTimer />}
+            {currentSection === "main" && (
+              <>
+                <div className="rounded-[20px] bg-white/80 border border-ink/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">3. Main activity</p>
+                  <p className="mt-2 text-base leading-7 text-ink whitespace-pre-line">
+                    {sectionContent[currentSection]}
+                  </p>
+                </div>
+                <div className="rounded-[20px] border border-ink/10 bg-mist/30 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">4. Finish and log</p>
+                  <p className="mt-2 text-base leading-7 text-ink whitespace-pre-line">
+                    {session.cooldown}
+                  </p>
+                </div>
+              </>
+            )}
 
             {currentSection === "warmup" && (
               <div className="space-y-3">
@@ -273,7 +375,6 @@ export function SessionPlayer({ session }: { session: SessionData }) {
                 </div>
               </div>
             )}
-
             {currentSection === "main" && (
               <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3">
                 <p className="text-xs font-semibold text-emerald-700 mb-1">What counts as a win</p>
@@ -310,6 +411,10 @@ export function SessionPlayer({ session }: { session: SessionData }) {
                 <p className="text-sm text-amber-900/80">{session.recoveryNotes}</p>
               </div>
             )}
+            <div className="rounded-[16px] border border-pine/15 bg-pine/5 px-4 py-3">
+              <p className="text-xs font-semibold text-pine mb-1">Next step</p>
+              <p className="text-sm text-ink/75">When you save this session, the app will open route analysis with the session details already carried over.</p>
+            </div>
           </div>
         )}
       </div>

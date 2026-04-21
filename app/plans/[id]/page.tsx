@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { duplicatePlanAction } from "@/app/actions";
 import { LoadChart } from "@/components/load-chart";
 import { PeakGraph } from "@/components/peak-graph";
+import { PlanScheduler } from "@/components/plan-scheduler";
 import { PlanPrintButton } from "@/components/plan-print-button";
 import { SectionHeading } from "@/components/section-heading";
 import { Card } from "@/components/ui/card";
@@ -107,6 +108,25 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div className="space-y-4">
+          <PlanScheduler
+            sessions={plan.sessions.map((session) => ({
+              id: session.id,
+              dayIndex: session.dayIndex,
+              dayLabel: session.dayLabel,
+              scheduledWindowLabel: session.scheduledWindowLabel,
+              scheduledStartTime: session.scheduledStartTime,
+              scheduledEndTime: session.scheduledEndTime,
+              title: session.title,
+              durationMinutes: session.durationMinutes,
+              sessionType: session.sessionType,
+              intensity: session.intensity,
+              completionStatus: session.completionStatus,
+              whyChosen: session.whyChosen,
+            }))}
+            trainingAvailabilityRaw={plan.user.scheduleConstraint?.trainingAvailability}
+            weeklyCalendarRaw={plan.user.scheduleConstraint?.weeklyCalendar}
+          />
+
           {plan.sessions.map((session) => (
             <Card key={session.id} className="space-y-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -115,6 +135,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
                   <h3 className="mt-1 text-lg font-semibold text-ink sm:text-xl">{session.title}</h3>
                   <p className="mt-2 text-sm text-ink/55">
                     {formatSessionType(session.sessionType)} • {session.durationMinutes} min
+                    {session.scheduledStartTime && session.scheduledEndTime ? ` • ${session.scheduledWindowLabel || "Scheduled"} ${session.scheduledStartTime}-${session.scheduledEndTime}` : ""}
                     {session.actualDurationMinutes && session.actualDurationMinutes !== session.durationMinutes ? ` • logged ${session.actualDurationMinutes} min` : ""}
                   </p>
                 </div>

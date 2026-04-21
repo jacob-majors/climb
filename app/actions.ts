@@ -787,15 +787,32 @@ export async function logSessionSurveyAction(formData: FormData) {
     const safeDuration = Number.isFinite(parsedDuration) ? Math.max(0, Math.round(parsedDuration as number)) : undefined;
     const session = await prisma.trainingSession.findUnique({ where: { id: sessionId } });
     if (session) {
+      const completedAt = completionStatus === "PLANNED" ? null : new Date();
       await prisma.trainingSession.update({
         where: { id: sessionId },
         data: {
           completionStatus,
           actualDurationMinutes: completionStatus === "SKIPPED" ? null : safeDuration ?? session.durationMinutes,
           completionNotes,
-          completedAt: completionStatus === "PLANNED" ? null : new Date(),
+          completedAt,
         },
       });
+
+      if (completionStatus !== "SKIPPED") {
+        revalidatePath("/dashboard");
+        revalidatePath("/plans");
+        const params = new URLSearchParams({
+          sourceSessionId: session.id,
+          sourceSessionTitle: session.title,
+          sourceSessionType: session.sessionType,
+          sourceDay: session.dayLabel,
+          sourceStart: session.scheduledStartTime || "",
+          sourceEnd: session.scheduledEndTime || "",
+          sourceWindow: session.scheduledWindowLabel || "",
+          sourceCompletedAt: completedAt?.toISOString() || "",
+        });
+        redirect(`/routes?${params.toString()}`);
+      }
     }
   }
 
@@ -820,4 +837,48 @@ export async function logSessionSurveyAction(formData: FormData) {
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
+}
+
+export async function updateSessionPlacementAction(input: {
+  sessionId: string;
+  dayIndex: number;
+  dayLabel: string;
+  windowLabel?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+}) {
+  const userId = await getOrCreateDbUser();
+  if (!userId) redirect("/sign-in");
+
+  const session = await prisma.trainingSession.findUnique({
+    where: { id: input.sessionId },
+    include: {
+      trainingPlan: {
+        select: {
+          id: true,
+          userId: true,
+        },
+      },
+    },
+  });
+
+  if (!session || session.trainingPlan.userId !== userId) {
+    return { ok: false };
+  }
+
+  await prisma.trainingSession.update({
+    where: { id: input.sessionId },
+    data: {
+      dayIndex: input.dayIndex,
+      dayLabel: input.dayLabel,
+      scheduledWindowLabel: input.windowLabel || null,
+      scheduledStartTime: input.startTime || null,
+      scheduledEndTime: input.endTime || null,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/plans");
+  revalidatePath(`/plans/${session.trainingPlan.id}`);
+  return { ok: true };
 }

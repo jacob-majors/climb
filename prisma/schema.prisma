@@ -264,6 +264,9 @@ model TrainingSession {
   trainingPlan     TrainingPlan   @relation(fields: [trainingPlanId], references: [id], onDelete: Cascade)
   dayIndex         Int
   dayLabel         String
+  scheduledWindowLabel String?
+  scheduledStartTime String?
+  scheduledEndTime String?
   sessionType      SessionType
   title            String
   durationMinutes  Int

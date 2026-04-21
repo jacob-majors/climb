@@ -32,6 +32,7 @@ import {
   MesocycleContext,
 } from "@/lib/periodization";
 import { personalizeSession, PersonalizationContext } from "@/lib/session-personalizer";
+import { findAvailabilityForDay } from "@/lib/training-availability";
 
 type EngineInput = {
   user: User;
@@ -313,6 +314,7 @@ function buildSession(
   mesocycleCtx: MesocycleContext,
   injuryRisk: { risk: InjuryRiskLevel; note: string },
   age: number,
+  scheduledWindow?: { label?: string | null; start: string; end: string } | null,
 ): PlannedSessionDraft {
   const dayLabel = dayNames[dayIndex];
   const guarded = youthFingerGuard(age, sessionType);
@@ -342,6 +344,9 @@ function buildSession(
   return {
     dayIndex,
     dayLabel,
+    scheduledWindowLabel: scheduledWindow?.label ?? null,
+    scheduledStartTime: scheduledWindow?.start ?? null,
+    scheduledEndTime: scheduledWindow?.end ?? null,
     sessionType: actualType,
     title: `${meta.title}${titleSuffix}`,
     durationMinutes,
@@ -564,6 +569,7 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
       mesocycleCtx,
       injuryRisk,
       user.age,
+      findAvailabilityForDay(schedule.trainingAvailability, dayLabel).windows[0] ?? null,
     );
 
     // Additional recovery note appends

@@ -21,6 +21,9 @@ export type AthleteBundle = User & {
 export type PlannedSessionDraft = {
   dayIndex: number;
   dayLabel: string;
+  scheduledWindowLabel?: string | null;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
   sessionType: SessionType;
   title: string;
   durationMinutes: number;
