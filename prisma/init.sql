@@ -44,6 +44,8 @@ CREATE TABLE "ClimbingProfile" (
 CREATE TABLE "RouteEntry" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
+    "zoneMapX" REAL,
+    "zoneMapY" REAL,
     "title" TEXT NOT NULL,
     "grade" TEXT NOT NULL,
     "gradeScale" TEXT NOT NULL,

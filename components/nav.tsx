@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Show, UserButton, SignInButton } from "@clerk/nextjs";
-import { CalendarDays, LayoutDashboard, Mountain, UserRound } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { CalendarDays, Dumbbell, LayoutDashboard, Mountain } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 
 const links = [
   { href: "/dashboard", label: "Dashboard",      icon: LayoutDashboard },
+  { href: "/train",     label: "Train",           icon: Dumbbell },
   { href: "/routes",    label: "Route Analysis",  icon: Mountain },
   { href: "/schedule",  label: "Schedule",        icon: CalendarDays },
 ];
@@ -21,20 +22,8 @@ export function Nav() {
         <BrandMark />
       </div>
 
-      {/* Top-right: profile link + Clerk user button */}
       <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
         <Show when="signed-in">
-          <Link
-            href="/profile"
-            className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold shadow-[0_8px_24px_rgba(15,36,32,0.12)] backdrop-blur transition ${
-              pathname === "/profile"
-                ? "border-pine bg-pine text-chalk"
-                : "border-ink/12 bg-chalk/95 text-ink hover:border-pine/40"
-            }`}
-          >
-            <UserRound className="h-3.5 w-3.5" />
-            Profile
-          </Link>
           <UserButton />
         </Show>
         <Show when="signed-out">

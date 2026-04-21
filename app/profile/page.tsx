@@ -1,4 +1,5 @@
 import { Discipline, ExperienceLevel, RecoveryQuality, StressLevel } from "@prisma/client";
+import { UserProfile } from "@clerk/nextjs";
 import { upsertProfileAction } from "@/app/actions";
 import Link from "next/link";
 import { TimerReset } from "lucide-react";
@@ -8,8 +9,36 @@ import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { getActiveAthlete } from "@/lib/data";
 import { getOrCreateDbUser } from "@/lib/auth";
+import { GOOGLE_CALENDAR_READONLY_SCOPE } from "@/lib/google-calendar";
 import { buildSetupTasks } from "@/lib/setup-tasks";
 import { redirect } from "next/navigation";
+
+type ProfilePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function readParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function accountMessage(error?: string) {
+  switch (error) {
+    case "google-calendar-not-connected":
+      return {
+        tone: "amber",
+        title: "Connect Google first",
+        description: "Add your Google account here so climb. can read your calendar and pull classes, work, and practice into your schedule.",
+      };
+    case "google-calendar-permission":
+      return {
+        tone: "clay",
+        title: "Google needs calendar permission",
+        description: "Reconnect Google and approve read-only Calendar access, then come back and sync again.",
+      };
+    default:
+      return null;
+  }
+}
 
 function equipmentString(raw?: string | null) {
   if (!raw) return "";
@@ -20,9 +49,12 @@ function equipmentString(raw?: string | null) {
   }
 }
 
-export default async function ProfilePage() {
+export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const userId = await getOrCreateDbUser();
   if (!userId) redirect("/sign-in");
+
+  const params = (await searchParams) ?? {};
+  const message = accountMessage(readParam(params.error));
   const athlete = await getActiveAthlete(userId);
   const profile = athlete?.profile;
   const setupTasks = buildSetupTasks(athlete);
@@ -32,9 +64,9 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Athlete profile"
-        title="Build the athlete foundation"
-        description="This page captures who the athlete is, what they climb, how much they can recover from, and what tools they have access to."
+        eyebrow="Profile"
+        title="Athlete details, account access, and permissions"
+        description="Keep the athlete profile and Clerk account settings together, including Google Calendar access for schedule sync."
       />
 
       <Card className="space-y-4">
@@ -86,6 +118,21 @@ export default async function ProfilePage() {
         </div>
       </Card>
 
+      {message ? (
+        <Card className={message.tone === "clay" ? "border-clay/20 bg-clay/5" : "border-amber-200 bg-amber-50/70"}>
+          <p className="text-sm font-semibold text-ink">{message.title}</p>
+          <p className="mt-2 text-sm leading-6 text-ink/70">{message.description}</p>
+          <div className="mt-4">
+            <Link
+              href="/schedule"
+              className="inline-flex items-center rounded-full border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-pine"
+            >
+              Back to schedule
+            </Link>
+          </div>
+        </Card>
+      ) : null}
+
       <Card className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -103,6 +150,21 @@ export default async function ProfilePage() {
             Open timer
           </Link>
         </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-ink/8 px-6 py-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Account</p>
+          <p className="mt-1 text-lg font-semibold text-ink">Manage sign-in, connected accounts, and Google access</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
+            Use Clerk here for email, passwords, connected providers, and Google Calendar permission management.
+          </p>
+        </div>
+        <UserProfile
+          additionalOAuthScopes={{
+            google: [GOOGLE_CALENDAR_READONLY_SCOPE],
+          }}
+        />
       </Card>
 
       <Card>

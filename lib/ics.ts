@@ -18,7 +18,30 @@ function unfoldIcsLines(text: string) {
   return text.replace(/\r?\n[ \t]/g, "");
 }
 
-function parseIcsDate(value: string) {
+const DEFAULT_TZ = "America/Los_Angeles";
+
+function parseLocalInZone(
+  year: number, month: number, day: number,
+  hour: number, minute: number, second: number,
+  timeZone: string,
+): Date {
+  // Treat components as UTC, then correct for the timezone offset.
+  const utcApprox = Date.UTC(year, month, day, hour, minute, second);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(utcApprox)).map((p) => [p.type, p.value]),
+  );
+  const displayHour = Number(parts.hour) % 24;
+  const displayMinute = Number(parts.minute);
+  const diffMs = ((hour - displayHour) * 60 + (minute - displayMinute)) * 60 * 1000;
+  return new Date(utcApprox + diffMs);
+}
+
+function parseIcsDate(value: string, tzid?: string | null): Date | null {
   const cleaned = value.trim();
 
   if (/^\d{8}$/.test(cleaned)) {
@@ -29,23 +52,26 @@ function parseIcsDate(value: string) {
   }
 
   if (/^\d{8}T\d{6}Z$/.test(cleaned)) {
-    const year = Number(cleaned.slice(0, 4));
-    const month = Number(cleaned.slice(4, 6)) - 1;
-    const day = Number(cleaned.slice(6, 8));
-    const hour = Number(cleaned.slice(9, 11));
-    const minute = Number(cleaned.slice(11, 13));
-    const second = Number(cleaned.slice(13, 15));
-    return new Date(Date.UTC(year, month, day, hour, minute, second));
+    return new Date(Date.UTC(
+      Number(cleaned.slice(0, 4)),
+      Number(cleaned.slice(4, 6)) - 1,
+      Number(cleaned.slice(6, 8)),
+      Number(cleaned.slice(9, 11)),
+      Number(cleaned.slice(11, 13)),
+      Number(cleaned.slice(13, 15)),
+    ));
   }
 
   if (/^\d{8}T\d{6}$/.test(cleaned)) {
-    const year = Number(cleaned.slice(0, 4));
-    const month = Number(cleaned.slice(4, 6)) - 1;
-    const day = Number(cleaned.slice(6, 8));
-    const hour = Number(cleaned.slice(9, 11));
-    const minute = Number(cleaned.slice(11, 13));
-    const second = Number(cleaned.slice(13, 15));
-    return new Date(year, month, day, hour, minute, second);
+    return parseLocalInZone(
+      Number(cleaned.slice(0, 4)),
+      Number(cleaned.slice(4, 6)) - 1,
+      Number(cleaned.slice(6, 8)),
+      Number(cleaned.slice(9, 11)),
+      Number(cleaned.slice(11, 13)),
+      Number(cleaned.slice(13, 15)),
+      tzid ?? DEFAULT_TZ,
+    );
   }
 
   const parsed = new Date(cleaned);
@@ -79,17 +105,20 @@ export function parseIcs(text: string) {
 
     if (!current) continue;
 
-    const separatorIndex = line.indexOf(":");
-    if (separatorIndex === -1) continue;
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
 
-    const key = line.slice(0, separatorIndex).split(";")[0];
-    const value = line.slice(separatorIndex + 1);
+    const keyPart = line.slice(0, colonIdx);
+    const value = line.slice(colonIdx + 1);
+    const key = keyPart.split(";")[0];
+    const tzidParam = keyPart.split(";").find((p) => p.startsWith("TZID="));
+    const tzid = tzidParam ? tzidParam.slice(5) : null;
 
     if (key === "SUMMARY") current.title = value;
     if (key === "LOCATION") current.location = value;
     if (key === "DESCRIPTION") current.description = value.replace(/\\n/g, "\n");
-    if (key === "DTSTART") current.start = parseIcsDate(value) ?? undefined;
-    if (key === "DTEND") current.end = parseIcsDate(value) ?? undefined;
+    if (key === "DTSTART") current.start = parseIcsDate(value, tzid) ?? undefined;
+    if (key === "DTEND") current.end = parseIcsDate(value, tzid) ?? undefined;
   }
 
   return events;
@@ -233,7 +262,8 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
   }
 
   const otherEntries: CalendarEntry[] = nonSchool.map((event) => {
-    const type = inferType(event.title, event.description);
+    const cleanDesc = event.description?.replace(/^Calendar:\s*.+?(\n|$)/i, "").trim() || undefined;
+    const type = inferType(event.title, cleanDesc);
     const durationHours = event.end
       ? Math.max(0.5, (event.end.getTime() - event.start.getTime()) / (1000 * 60 * 60))
       : 1;
@@ -244,7 +274,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
       load: inferLoad(event.title, type, durationHours),
       time: event.end ? `${toClockTime(event.start)} - ${toClockTime(event.end)}` : toClockTime(event.start),
       date: toIsoDate(event.start),
-      notes: [event.location, event.description].filter(Boolean).join(" • ") || undefined,
+      notes: [event.location, event.description?.replace(/^Calendar:\s*.+?(\n|$)/i, "").trim() || null].filter(Boolean).join(" • ") || undefined,
       source: "ics",
     };
   });

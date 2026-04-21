@@ -1,5 +1,6 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { SESSIONS_ZONES, type SessionsZoneId } from "@/lib/sessions-map";
 
 function countLabel(count: number) {
@@ -8,15 +9,62 @@ function countLabel(count: number) {
   return String(count);
 }
 
+type PlacedRoute = {
+  id: string;
+  gymZoneId: SessionsZoneId;
+  title: string;
+  grade: string;
+  zoneMapX: number | null;
+  zoneMapY: number | null;
+};
+
 export function SessionsGymMap({
   selectedZoneId,
   onSelect,
   zoneCounts,
+  routes = [],
+  selectedRouteId,
+  placement,
+  onPlacementChange,
+  onRouteSelect,
 }: {
   selectedZoneId: SessionsZoneId | "";
   onSelect: (zoneId: SessionsZoneId) => void;
   zoneCounts: Partial<Record<SessionsZoneId, number>>;
+  routes?: PlacedRoute[];
+  selectedRouteId?: string;
+  placement?: { x: number; y: number } | null;
+  onPlacementChange?: (coords: { x: number; y: number }) => void;
+  onRouteSelect?: (routeId: string) => void;
 }) {
+  function coordsFromEvent(event: MouseEvent<SVGPathElement>) {
+    const svg = event.currentTarget.ownerSVGElement;
+    if (!svg) return null;
+
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * 840,
+      y: ((event.clientY - rect.top) / rect.height) * 520,
+    };
+  }
+
+  function handleZoneClick(event: MouseEvent<SVGPathElement>, zoneId: SessionsZoneId) {
+    const coords = coordsFromEvent(event);
+
+    if (selectedZoneId === zoneId && onPlacementChange && coords) {
+      onPlacementChange(coords);
+      return;
+    }
+
+    onSelect(zoneId);
+  }
+
+  const visibleRoutes = routes.filter(
+    (route) => route.gymZoneId === selectedZoneId && route.zoneMapX !== null && route.zoneMapY !== null,
+  );
+
   return (
     <div className="overflow-hidden rounded-[26px] border border-[#edf2f7] bg-[linear-gradient(180deg,#fbfbfc_0%,#f5f7fa_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
       <svg viewBox="0 0 840 520" className="h-auto w-full">
@@ -45,7 +93,7 @@ export function SessionsGymMap({
                 stroke={isActive ? "#dbe9f7" : "#d5e3f2"}
                 strokeLinejoin="round"
                 strokeWidth={isActive ? 16 : 14}
-                onClick={() => onSelect(zone.id)}
+                onClick={(event) => handleZoneClick(event, zone.id)}
               />
               <path
                 d={zone.path}
@@ -54,7 +102,7 @@ export function SessionsGymMap({
                 stroke={isActive ? "#dce9f4" : "#e4edf6"}
                 strokeLinejoin="round"
                 strokeWidth={isActive ? 4 : 3}
-                onClick={() => onSelect(zone.id)}
+                onClick={(event) => handleZoneClick(event, zone.id)}
               />
               <text
                 x={zone.labelX}
@@ -76,7 +124,7 @@ export function SessionsGymMap({
                   cy="0"
                   r={count > 0 ? 26 : 22}
                   fill={isActive ? "#111827" : "#ffffff"}
-                  stroke={isActive ? "#111827" : "#f3f4f6"}
+                  stroke={isActive ? "#111827" : "#dfe6ef"}
                   strokeWidth="5"
                 />
                 <text
@@ -92,6 +140,44 @@ export function SessionsGymMap({
             </g>
           );
         })}
+
+        {visibleRoutes.map((route) => {
+          const isSelected = selectedRouteId === route.id;
+
+          return (
+            <g
+              key={route.id}
+              className="cursor-pointer"
+              transform={`translate(${route.zoneMapX}, ${route.zoneMapY})`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRouteSelect?.(route.id);
+              }}
+            >
+              <circle
+                cx="0"
+                cy="0"
+                r={isSelected ? 12 : 9}
+                fill={isSelected ? "#f97316" : "#0f172a"}
+                stroke="#ffffff"
+                strokeWidth="3"
+              />
+              <circle
+                cx="0"
+                cy="0"
+                r="3"
+                fill="#ffffff"
+              />
+            </g>
+          );
+        })}
+
+        {selectedZoneId && placement ? (
+          <g transform={`translate(${placement.x}, ${placement.y})`} className="pointer-events-none">
+            <circle cx="0" cy="0" r="10" fill="#dc6803" stroke="#ffffff" strokeWidth="3" />
+            <circle cx="0" cy="0" r="3" fill="#ffffff" />
+          </g>
+        ) : null}
       </svg>
     </div>
   );

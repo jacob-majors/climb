@@ -6,7 +6,7 @@ import { ClimbType, GradeScale } from "@prisma/client";
 import { saveRouteEntryAction } from "@/app/actions";
 import type { ClimbAnalysis } from "@/app/api/analyze-climb/route";
 import { SessionsGymMap } from "@/components/sessions-gym-map";
-import { getSessionsZoneLabel, SESSIONS_GYM_NAME, type SessionsZoneId } from "@/lib/sessions-map";
+import { getSessionsZoneLabel, SESSIONS_GYM_NAME, SESSIONS_ZONES, type SessionsZoneId } from "@/lib/sessions-map";
 
 const ROUTE_COLORS = [
   { name: "Red", hex: "#ef4444" },
@@ -231,6 +231,8 @@ type RouteWizardSharedRoute = {
   id: string;
   gymZoneId: string;
   gymZoneLabel: string;
+  zoneMapX: number | null;
+  zoneMapY: number | null;
   title: string;
   grade: string;
   gradeScale: GradeScale;
@@ -269,6 +271,8 @@ type WizardData = {
   gymName: string;
   gymZoneId: SessionsZoneId | "";
   gymZoneLabel: string;
+  zoneMapX: number | null;
+  zoneMapY: number | null;
   gymRouteId: string;
   detailLevel: DetailLevel;
 };
@@ -307,6 +311,8 @@ const defaultData: WizardData = {
   gymName: "",
   gymZoneId: "",
   gymZoneLabel: "",
+  zoneMapX: null,
+  zoneMapY: null,
   gymRouteId: "",
   detailLevel: "standard",
 };
@@ -555,6 +561,12 @@ function detailLabel(level: DetailLevel) {
   return "Standard log";
 }
 
+function routeReuseLabel(count: number) {
+  if (count <= 0) return "No saved routes";
+  if (count === 1) return "1 saved route";
+  return `${count} saved routes`;
+}
+
 function buildSessionNote(prefill?: SessionPrefill) {
   if (!prefill?.sourceSessionTitle) return "";
 
@@ -607,6 +619,21 @@ export function RouteWizard({
     [data.gymZoneId, sessionsRoutes],
   );
 
+  const sortedRoutesInZone = useMemo(
+    () =>
+      [...routesInZone].sort((left, right) => {
+        if (right.routeCount !== left.routeCount) return right.routeCount - left.routeCount;
+        return left.title.localeCompare(right.title);
+      }),
+    [routesInZone],
+  );
+
+  const totalSharedRoutes = sessionsRoutes.length;
+  const hasPlacedRouteDot = data.zoneMapX !== null && data.zoneMapY !== null;
+  const mapPlacement: { x: number; y: number } | null = hasPlacedRouteDot
+    ? { x: data.zoneMapX as number, y: data.zoneMapY as number }
+    : null;
+
   const selectedSharedRoute = useMemo(
     () => sessionsRoutes.find((route) => route.id === data.gymRouteId) ?? null,
     [data.gymRouteId, sessionsRoutes],
@@ -626,6 +653,8 @@ export function RouteWizard({
     setData((current) => ({
       ...current,
       gymRouteId: "",
+      zoneMapX: null,
+      zoneMapY: null,
       title: "",
       grade: "",
       gradeScale: GradeScale.YDS,
@@ -718,6 +747,30 @@ export function RouteWizard({
     }));
   }
 
+  function placeRouteInZone(coords: { x: number; y: number }) {
+    setColorTags([]);
+    setColorInput("");
+    setData((current) => ({
+      ...current,
+      gymName: SESSIONS_GYM_NAME,
+      gymZoneId: current.gymZoneId,
+      gymZoneLabel: getSessionsZoneLabel(current.gymZoneId) ?? current.gymZoneLabel,
+      gymRouteId: "",
+      zoneMapX: coords.x,
+      zoneMapY: coords.y,
+      title: "",
+      grade: "",
+      gradeScale: GradeScale.YDS,
+      climbType: ClimbType.ROUTE,
+      wallAngle: "",
+      wallHeight: "",
+      holdTypes: [],
+      movementType: "",
+      styleTags: [],
+      environment: "Indoor",
+    }));
+  }
+
   function startNewRouteFromZone() {
     resetRouteIdentity();
     setData((current) => ({
@@ -725,6 +778,8 @@ export function RouteWizard({
       gymName: SESSIONS_GYM_NAME,
       gymZoneId: current.gymZoneId,
       gymZoneLabel: getSessionsZoneLabel(current.gymZoneId) ?? current.gymZoneLabel,
+      zoneMapX: current.zoneMapX,
+      zoneMapY: current.zoneMapY,
       environment: "Indoor",
     }));
     advance();
@@ -738,6 +793,8 @@ export function RouteWizard({
       gymName: SESSIONS_GYM_NAME,
       gymZoneId: route.gymZoneId as SessionsZoneId,
       gymZoneLabel: route.gymZoneLabel,
+      zoneMapX: route.zoneMapX,
+      zoneMapY: route.zoneMapY,
       gymRouteId: route.id,
       title: route.title,
       grade: route.grade,
@@ -806,6 +863,8 @@ export function RouteWizard({
     formData.append("gymName", data.gymName);
     formData.append("gymZoneId", data.gymZoneId);
     formData.append("gymZoneLabel", data.gymZoneLabel);
+    formData.append("zoneMapX", data.zoneMapX === null ? "" : String(data.zoneMapX));
+    formData.append("zoneMapY", data.zoneMapY === null ? "" : String(data.zoneMapY));
     formData.append("title", data.title);
     formData.append("grade", data.grade);
     formData.append("gradeScale", data.gradeScale);
@@ -1012,14 +1071,74 @@ export function RouteWizard({
         {currentStep === "sessionsRoute" && (
           <div className="space-y-4">
             <div className="space-y-3 rounded-[24px] border border-ink/10 bg-white/70 p-3 sm:p-4">
-              <p className="px-1 text-sm text-ink/60">
-                Tap the zone. If somebody has already logged the route, you can reuse it instead of typing everything again.
-              </p>
+              <div className="px-1">
+                <p className="text-sm text-ink/60">
+                  Pick a Sessions zone first. If someone already logged the climb, you can reuse that route instead of typing everything again.
+                </p>
+                <p className="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-ink/45">
+                  {totalSharedRoutes} shared {totalSharedRoutes === 1 ? "route" : "routes"} available across the gym
+                </p>
+              </div>
               <SessionsGymMap
                 selectedZoneId={data.gymZoneId}
                 onSelect={chooseZone}
                 zoneCounts={zoneCounts}
+                routes={sessionsRoutes
+                  .filter((route) => route.gymZoneId === data.gymZoneId)
+                  .map((route) => ({
+                    id: route.id,
+                    gymZoneId: route.gymZoneId as SessionsZoneId,
+                    title: route.title,
+                    grade: route.grade,
+                    zoneMapX: route.zoneMapX,
+                    zoneMapY: route.zoneMapY,
+                  }))}
+                selectedRouteId={data.gymRouteId || undefined}
+                placement={mapPlacement}
+                onPlacementChange={placeRouteInZone}
+                onRouteSelect={(routeId) => {
+                  const route = sessionsRoutes.find((item) => item.id === routeId);
+                  if (route) chooseSharedRoute(route);
+                }}
               />
+            </div>
+
+            <div className="rounded-[24px] border border-ink/10 bg-white/80 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-ink">Zone quick pick</p>
+                  <p className="text-xs text-ink/55">Tap a zone here if the map feels cramped on mobile.</p>
+                </div>
+                {data.gymZoneId ? (
+                  <span className="rounded-full bg-pine/10 px-3 py-1 text-xs font-semibold text-pine">
+                    Selected: {data.gymZoneLabel}
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {SESSIONS_ZONES.map((zone) => {
+                  const count = zoneCounts[zone.id] ?? 0;
+                  const isActive = data.gymZoneId === zone.id;
+
+                  return (
+                    <button
+                      key={zone.id}
+                      type="button"
+                      onClick={() => chooseZone(zone.id)}
+                      className={`rounded-[18px] border px-3 py-3 text-left transition-all hover:shadow-sm ${
+                        isActive
+                          ? "border-pine bg-pine text-chalk"
+                          : "border-ink/10 bg-white text-ink hover:border-pine/35"
+                      }`}
+                    >
+                      <p className="text-sm font-semibold">{zone.label}</p>
+                      <p className={`mt-1 text-xs ${isActive ? "text-chalk/80" : "text-ink/55"}`}>
+                        {routeReuseLabel(count)}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {data.gymZoneId && (
@@ -1032,24 +1151,36 @@ export function RouteWizard({
                         ? `${routesInZone.length} saved ${routesInZone.length === 1 ? "route" : "routes"} ready to reuse`
                         : "No saved routes here yet"}
                     </p>
+                    <p className="mt-1 text-xs text-ink/55">
+                      Tap inside the selected zone to place a new route dot, or tap an existing dot to reuse that route.
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={startNewRouteFromZone}
-                    className="rounded-full border border-pine/20 bg-pine/5 px-4 py-2 text-sm font-semibold text-pine transition-colors hover:bg-pine hover:text-chalk"
+                    disabled={!hasPlacedRouteDot}
+                    className="rounded-full border border-pine/20 bg-pine/5 px-4 py-2 text-sm font-semibold text-pine transition-colors hover:bg-pine hover:text-chalk disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    New route in {data.gymZoneLabel}
+                    {hasPlacedRouteDot ? `New route in ${data.gymZoneLabel}` : "Drop a dot to add a route"}
                   </button>
                 </div>
 
+                {hasPlacedRouteDot && !data.gymRouteId ? (
+                  <div className="rounded-[18px] border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-ink/70">
+                    New route dot placed in {data.gymZoneLabel}. Continue with the button above to name and grade it.
+                  </div>
+                ) : null}
+
                 {routesInZone.length > 0 ? (
                   <div className="space-y-2">
-                    {routesInZone.map((route) => (
+                    {sortedRoutesInZone.map((route) => (
                       <button
                         key={route.id}
                         type="button"
                         onClick={() => chooseSharedRoute(route)}
-                        className="w-full rounded-[18px] border border-ink/10 bg-white px-4 py-3 text-left transition-all hover:border-pine/35 hover:shadow-md active:scale-[0.99]"
+                        className={`w-full rounded-[18px] border bg-white px-4 py-3 text-left transition-all hover:border-pine/35 hover:shadow-md active:scale-[0.99] ${
+                          data.gymRouteId === route.id ? "border-pine shadow-md" : "border-ink/10"
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -1063,6 +1194,9 @@ export function RouteWizard({
                             {route.routeCount} {route.routeCount === 1 ? "log" : "logs"}
                           </span>
                         </div>
+                        <p className="mt-2 text-xs font-medium text-ink/45">
+                          {route.zoneMapX !== null && route.zoneMapY !== null ? "Dot saved on map" : "No map dot saved yet"}
+                        </p>
                         {(route.notes || route.styleTags) && (
                           <p className="mt-2 text-sm text-ink/60">
                             {route.notes || parseStyleTags(route.styleTags).slice(0, 4).join(", ")}

@@ -21,6 +21,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { updateQuickCheckInAction, updateSessionCompletionAction } from "@/app/actions";
 import { parseWeeklyCalendar, type CalendarEntryType } from "@/lib/calendar";
 import { getActiveAthlete } from "@/lib/data";
+import { auth } from "@clerk/nextjs/server";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { dayNames, formatDate, formatSessionType, intensityClass, intensityLabel } from "@/lib/format";
@@ -93,46 +94,104 @@ function getNextCompetition(competitions: Athlete["competitionEvents"]) {
 }
 
 function getLocalTodayInfo(timeZone = "America/Los_Angeles") {
+  const now = new Date();
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     weekday: "long",
-  }).formatToParts(new Date());
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
 
   const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  const year = Number(byType.year);
+  const month = Number(byType.month);
+  const day = Number(byType.day);
+  const hour = Number(byType.hour) || 0;
+  const minute = Number(byType.minute) || 0;
+  const tomorrowDate = new Date(year, month - 1, day + 1);
 
   return {
     isoDate: `${byType.year}-${byType.month}-${byType.day}`,
     weekday: byType.weekday,
+    nowMinutes: hour * 60 + minute,
+    tomorrowIsoDate: format(tomorrowDate, "yyyy-MM-dd"),
+    tomorrowWeekday: new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(tomorrowDate),
   };
+}
+
+function inferEventEndMinutes(raw?: string | null) {
+  if (!raw) return null;
+  const compact = raw.trim().toLowerCase().replace(/\s+/g, "");
+  const tokens = compact.split(/[-–]/).filter(Boolean);
+  if (tokens.length < 2) return null;
+  const endToken = tokens[tokens.length - 1];
+  const match = /^(\d{1,2})(?::(\d{2}))?(am|pm)?$/.exec(endToken);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] ?? "0");
+  const meridiem = match[3] ?? (compact.endsWith("pm") ? "pm" : compact.endsWith("am") ? "am" : null);
+  if (meridiem === "pm" && hours < 12) hours += 12;
+  if (meridiem === "am" && hours === 12) hours = 0;
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
 }
 
 function buildTodayItems(schedule: NonNullable<Athlete["scheduleConstraint"]>) {
   const today = getLocalTodayInfo();
+  const EVENING_MINUTES = 18 * 60;
 
-  return parseWeeklyCalendar(schedule.weeklyCalendar)
-    .filter((entry) => {
-      if (entry.type === "competition") return false;
-      if (entry.date) return entry.date === today.isoDate;
-      return entry.day === today.weekday;
-    })
-    .sort((a, b) => (inferEventStartMinutes(a.time) ?? 24 * 60) - (inferEventStartMinutes(b.time) ?? 24 * 60))
-    .map((entry) => ({
-      title: entry.title,
-      type: entry.type,
-      time: entry.time,
-      notes: entry.notes,
-    }));
+  const allEntries = parseWeeklyCalendar(schedule.weeklyCalendar);
+
+  function getEntriesForDay(isoDate: string, weekday: string): TodayItem[] {
+    return allEntries
+      .filter((entry) => {
+        if (entry.type === "competition") return false;
+        if (entry.date) return entry.date === isoDate;
+        return entry.day === weekday;
+      })
+      .sort((a, b) => (inferEventStartMinutes(a.time) ?? 24 * 60) - (inferEventStartMinutes(b.time) ?? 24 * 60))
+      .map((entry) => ({
+        title: entry.title,
+        type: entry.type,
+        time: entry.time,
+        notes: entry.notes,
+      }));
+  }
+
+  const todayEntries = getEntriesForDay(today.isoDate, today.weekday);
+  const remainingToday = todayEntries.filter((e) => {
+    const endMin = inferEventEndMinutes(e.time);
+    return endMin === null || today.nowMinutes < endMin;
+  });
+
+  if (today.nowMinutes >= EVENING_MINUTES && remainingToday.length === 0) {
+    return { items: getEntriesForDay(today.tomorrowIsoDate, today.tomorrowWeekday), label: "Tomorrow" };
+  }
+
+  return { items: remainingToday, label: "Today" };
 }
 
 function humanizeTimeRange(time?: string | null) {
   if (!time) return null;
-  return time.replace(/\s*[–-]\s*/g, " to ");
+  const parts = time.trim().split(/\s*[-–]\s*/);
+  const fmt = (part: string) => {
+    const t = part.trim();
+    if (/[ap]m/i.test(t)) return t;
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+    if (!m) return t;
+    const h = Number(m[1]), min = Number(m[2]);
+    if (h > 23 || min > 59) return t;
+    return `${h % 12 || 12}:${String(min).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+  };
+  return parts.map(fmt).join(" to ");
 }
 
-function todayHeadline(items: TodayItem[], sessionEntry: ReturnType<typeof getUpcomingSession>) {
+function todayHeadline(items: TodayItem[], sessionEntry: ReturnType<typeof getUpcomingSession>, dayLabel = "Today") {
   const first = selectTodayItem(items);
   if (first) {
     const timeLabel = humanizeTimeRange(first.time);
@@ -143,7 +202,7 @@ function todayHeadline(items: TodayItem[], sessionEntry: ReturnType<typeof getUp
     return `${sessionEntry.session.title}${sessionEntry.windowLabel ? ` at ${sessionEntry.windowLabel}` : ""}`;
   }
 
-  return "Nothing scheduled today";
+  return `Nothing scheduled ${dayLabel.toLowerCase()}`;
 }
 
 function formatClockLabel(value?: string | null) {
@@ -462,6 +521,9 @@ function completionBadge(status: Athlete["trainingPlans"][number]["sessions"][nu
 }
 
 export default async function DashboardPage() {
+  const { has } = await auth();
+  const hasAiCoach = has({ feature: "ai_coach" });
+
   let userId: string | null = null;
   try {
     userId = await getOrCreateDbUser();
@@ -495,6 +557,7 @@ export default async function DashboardPage() {
   let currentPlan = selectCurrentWeekPlan(athlete.trainingPlans);
   let sessionEntry = getUpcomingSession(currentPlan, schedule.trainingAvailability);
   let todayItems: TodayItem[] = [];
+  let dayLabel = "Today";
   let todayItem: TodayItem | null = null;
   let nextComp = getNextCompetition(athlete.competitionEvents);
   let daysUntilComp = nextComp ? daysToCompetition(nextComp.eventDate) : null;
@@ -511,7 +574,9 @@ export default async function DashboardPage() {
     Array<ReturnType<typeof getSessionEntry> & { strain: number; tryHard: number }> = [];
 
   try {
-    todayItems = buildTodayItems(schedule);
+    const todayResult = buildTodayItems(schedule);
+    todayItems = todayResult.items;
+    dayLabel = todayResult.label;
     todayItem = selectTodayItem(todayItems);
     upcomingItems = buildUpcomingItems({
       latestPlan: currentPlan,
@@ -837,9 +902,9 @@ export default async function DashboardPage() {
       <section className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Card className="space-y-4">
           <SectionHeading
-            eyebrow="Today"
-            title={todayHeadline(todayItems, sessionEntry)}
-            description={todayItems.length ? "What is on the calendar today." : sessionEntry ? "No calendar event is saved for today, so the next planned session is shown." : "Nothing is on the calendar today."}
+            eyebrow={dayLabel}
+            title={todayHeadline(todayItems, sessionEntry, dayLabel)}
+            description={todayItems.length ? `What is on the calendar ${dayLabel.toLowerCase()}.` : sessionEntry ? "No calendar event is saved for today, so the next planned session is shown." : `Nothing is on the calendar ${dayLabel.toLowerCase()}.`}
           />
 
           {todayItem ? (
@@ -989,30 +1054,56 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Goal</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{coach.goal}</p>
-              </div>
-              <div className="rounded-2xl border border-ink/10 bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">How hard</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{coach.effort}</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Win if</p>
-                <p className="mt-2 text-sm leading-6 text-emerald-950/80">{coach.win}</p>
-              </div>
-            </div>
+            {hasAiCoach ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Goal</p>
+                    <p className="mt-2 text-sm leading-6 text-ink">{coach.goal}</p>
+                  </div>
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">How hard</p>
+                    <p className="mt-2 text-sm leading-6 text-ink">{coach.effort}</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Win if</p>
+                    <p className="mt-2 text-sm leading-6 text-emerald-950/80">{coach.win}</p>
+                  </div>
+                </div>
 
-            <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Why this session</p>
-              <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.whyChosen}</p>
-            </div>
+                <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Why this session</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.whyChosen}</p>
+                </div>
 
-            <div className="rounded-2xl border border-ink/10 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Pacing cue</p>
-              <p className="mt-2 text-sm leading-6 text-ink">{coach.pacing}</p>
-            </div>
+                <div className="rounded-2xl border border-ink/10 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Pacing cue</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{coach.pacing}</p>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-pine/20 bg-[linear-gradient(135deg,#f0f7f4_0%,#e8f3ee_100%)] p-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-pine/70">AI Coach · Pro</p>
+                <p className="mt-2 text-sm font-semibold text-ink">Session goal, pacing cues, and win conditions</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink/65">
+                  Upgrade to Pro and the AI coach breaks down every session — what to aim for, how hard to push, and what a successful workout looks like.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    href="/upgrade"
+                    className="inline-flex items-center gap-2 rounded-full bg-pine px-4 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink"
+                  >
+                    Start 14-day free trial
+                  </Link>
+                  <Link
+                    href="/pricing"
+                    className="inline-flex items-center gap-2 rounded-full border border-pine/20 bg-white px-4 py-2.5 text-sm font-semibold text-pine transition hover:border-pine"
+                  >
+                    See pricing
+                  </Link>
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-3">
               <div className="rounded-2xl bg-mist p-4">

@@ -61,6 +61,10 @@ function jsonValue<T>(formData: FormData, key: string, fallback: T): T {
 type CompletionStatus = "PLANNED" | "COMPLETED" | "MODIFIED" | "SKIPPED";
 type SyncedCalendarSource = "ics" | "google";
 
+function normalizeCalendarUrl(url: string) {
+  return url.startsWith("webcal://") ? "https://" + url.slice(9) : url;
+}
+
 function entriesWithSource(entries: CalendarEntry[], source: SyncedCalendarSource) {
   return entries.map((entry) => ({ ...entry, source }));
 }
@@ -198,6 +202,8 @@ export async function saveRouteEntryAction(formData: FormData) {
   const gymName = text(formData, "gymName") || null;
   const gymZoneId = text(formData, "gymZoneId") || null;
   const gymZoneLabel = text(formData, "gymZoneLabel") || getSessionsZoneLabel(gymZoneId);
+  const zoneMapX = text(formData, "zoneMapX") ? floatValue(formData, "zoneMapX") : null;
+  const zoneMapY = text(formData, "zoneMapY") ? floatValue(formData, "zoneMapY") : null;
 
   const titleInput = text(formData, "title");
   const gradeInput = text(formData, "grade");
@@ -222,6 +228,8 @@ export async function saveRouteEntryAction(formData: FormData) {
     await prisma.gymRoute.update({
       where: { id: existingGymRoute.id },
       data: {
+        zoneMapX: zoneMapX ?? undefined,
+        zoneMapY: zoneMapY ?? undefined,
         wallAngle: wallAngle || undefined,
         wallHeight: wallHeight || undefined,
         holdTypes: holdTypes && holdTypes !== "Not specified" ? holdTypes : undefined,
@@ -247,6 +255,8 @@ export async function saveRouteEntryAction(formData: FormData) {
         gymName,
         gymZoneId,
         gymZoneLabel: gymZoneLabel ?? getSessionsZoneLabel(gymZoneId) ?? gymZoneId,
+        zoneMapX,
+        zoneMapY,
         title: titleInput,
         grade: gradeInput,
         gradeScale,
@@ -263,6 +273,8 @@ export async function saveRouteEntryAction(formData: FormData) {
       update: {
         gradeScale,
         environment: environmentInput || undefined,
+        zoneMapX: zoneMapX ?? undefined,
+        zoneMapY: zoneMapY ?? undefined,
         wallAngle: wallAngle ?? undefined,
         wallHeight: wallHeight ?? undefined,
         holdTypes: holdTypes || undefined,
@@ -282,6 +294,8 @@ export async function saveRouteEntryAction(formData: FormData) {
       gymName,
       gymZoneId,
       gymZoneLabel,
+      zoneMapX: zoneMapX ?? existingGymRoute?.zoneMapX ?? null,
+      zoneMapY: zoneMapY ?? existingGymRoute?.zoneMapY ?? null,
       title: titleInput || existingGymRoute?.title || "Unnamed climb",
       grade: gradeInput || existingGymRoute?.grade || "Unknown",
       gradeScale: gradeScale || existingGymRoute?.gradeScale || GradeScale.YDS,
@@ -445,7 +459,7 @@ export async function importCalendarAction(formData: FormData) {
   const importedEvents = [];
 
   for (const calendarUrl of calendarUrls) {
-    const response = await fetch(calendarUrl, { cache: "no-store" });
+    const response = await fetch(normalizeCalendarUrl(calendarUrl), { cache: "no-store" });
     if (!response.ok) {
       redirect("/schedule?error=calendar-import");
     }
@@ -480,7 +494,7 @@ export async function refreshCalendarAction(formData: FormData) {
 
   const importedEvents = [];
   for (const url of urls) {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(normalizeCalendarUrl(url), { cache: "no-store" });
     if (response.ok) {
       importedEvents.push(...parseIcs(await response.text()));
     }
@@ -504,7 +518,7 @@ export async function syncGoogleCalendarAction() {
 
   const accessToken = await getCurrentGoogleAccessToken();
   if (!accessToken) {
-    redirect("/account?intent=google-calendar&error=google-calendar-not-connected");
+    redirect("/profile?intent=google-calendar&error=google-calendar-not-connected");
   }
 
   try {
@@ -521,7 +535,7 @@ export async function syncGoogleCalendarAction() {
     redirect("/schedule?success=google-calendar-synced");
   } catch (error) {
     if (error instanceof Error && error.message.includes("403")) {
-      redirect("/account?intent=google-calendar&error=google-calendar-permission");
+      redirect("/profile?intent=google-calendar&error=google-calendar-permission");
     }
 
     redirect("/schedule?error=google-calendar-sync");
@@ -750,6 +764,27 @@ export async function updateQuickCheckInAction(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/plans");
   redirect("/dashboard");
+}
+
+export async function deleteRouteEntryAction(formData: FormData) {
+  const userId = await getOrCreateDbUser();
+  if (!userId) redirect("/sign-in");
+
+  const entryId = text(formData, "entryId");
+  if (!entryId) redirect("/routes");
+
+  const entry = await prisma.routeEntry.findUnique({
+    where: { id: entryId },
+    select: { id: true, userId: true },
+  });
+
+  if (!entry || entry.userId !== userId) redirect("/routes");
+
+  await prisma.routeEntry.delete({ where: { id: entryId } });
+
+  revalidatePath("/routes");
+  revalidatePath("/dashboard");
+  redirect("/routes");
 }
 
 export async function addCompetitionAction(formData: FormData) {

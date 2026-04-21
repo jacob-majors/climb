@@ -41,7 +41,7 @@ export function CalendarLinkManager({ userId, initialUrls, hasCalendar }: Props)
             <input
               value={link}
               onChange={(e) => updateLink(index, e.target.value)}
-              placeholder="https://calendar.google.com/calendar/ical/…"
+              placeholder="https:// or webcal:// calendar URL"
               className="flex-1 rounded-xl border border-ink/10 bg-mist/30 px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15"
             />
             <button
@@ -73,6 +73,10 @@ export function CalendarLinkManager({ userId, initialUrls, hasCalendar }: Props)
           {hasCalendar ? "Save and sync" : "Connect calendar"}
         </button>
       </div>
+
+      <p className="text-xs leading-5 text-ink/45">
+        Paste an ICS link — both <span className="font-mono">https://</span> and <span className="font-mono">webcal://</span> work. In Apple Calendar, right-click a calendar and choose &ldquo;Get Info&rdquo;; in Google Calendar, go to Settings → your calendar → &ldquo;Secret address in iCal format.&rdquo;
+      </p>
     </form>
   );
 }
