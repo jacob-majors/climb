@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { CalendarDays, Dumbbell, LayoutDashboard, Mountain } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { BugReportButton } from "@/components/bug-report-button";
+import { GlobalCoachChat } from "@/components/global-coach-chat";
 
 const links = [
   { href: "/dashboard", label: "Dashboard",      icon: LayoutDashboard },
@@ -42,6 +43,10 @@ export function Nav() {
           </SignInButton>
         </Show>
       </div>
+
+      <Show when="signed-in">
+        <GlobalCoachChat />
+      </Show>
 
       <Show when="signed-in">
         <nav className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-3 pointer-events-none">
