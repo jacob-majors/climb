@@ -50,7 +50,7 @@ export function BrandGlyph({ className }: BrandGlyphProps) {
   );
 }
 
-export function BrandMark({ href = "/dashboard", compact = false }: BrandMarkProps) {
+export function BrandMark({ href = "/", compact = false }: BrandMarkProps) {
   return (
     <Link
       href={href}
