@@ -470,35 +470,50 @@ export async function saveScheduleAction(formData: FormData) {
   });
 
   if (hasCompetitionPayload) {
-    const existingIds = competitionsJson.map((competition) => competition.id).filter(Boolean) as string[];
-    await prisma.competitionEvent.deleteMany({ where: { userId, ...(existingIds.length ? { id: { notIn: existingIds } } : {}) } });
+    const validCompetitions = competitionsJson.filter((c) => c.name && c.date);
+    const existingIds = validCompetitions.map((c) => c.id).filter(Boolean) as string[];
 
-    for (const competition of competitionsJson) {
+    // Only delete competitions that belong to this user and aren't in the current list
+    if (existingIds.length > 0) {
+      await prisma.competitionEvent.deleteMany({
+        where: { userId, id: { notIn: existingIds } },
+      });
+    }
+
+    for (const competition of validCompetitions) {
+      const eventDate = parseLocalDateInput(competition.date) ?? new Date(competition.date + "T12:00:00");
+      if (isNaN(eventDate.getTime())) continue;
+
       const payload = {
         name: competition.name,
-        eventDate: parseLocalDateInput(competition.date) ?? new Date(competition.date),
+        eventDate,
         location: competition.location || null,
-        discipline: competition.discipline,
+        discipline: competition.discipline ?? Discipline.MIXED,
         notes: competition.notes || null,
       };
 
       if (competition.id) {
-        await prisma.competitionEvent.update({
-          where: { id: competition.id },
-          data: payload,
+        // Verify the record exists and belongs to this user before updating
+        const existing = await prisma.competitionEvent.findFirst({
+          where: { id: competition.id, userId },
+          select: { id: true },
         });
+        if (existing) {
+          await prisma.competitionEvent.update({ where: { id: competition.id }, data: payload });
+        } else {
+          await prisma.competitionEvent.create({ data: { userId, ...payload } });
+        }
       } else {
-        await prisma.competitionEvent.create({
-          data: {
-            userId,
-            ...payload,
-          },
-        });
+        await prisma.competitionEvent.create({ data: { userId, ...payload } });
       }
     }
   }
 
-  await ensureFreshTrainingPlan(userId);
+  try {
+    await ensureFreshTrainingPlan(userId);
+  } catch {
+    // Plan regeneration is best-effort — don't block the save
+  }
 
   revalidatePath("/");
   revalidatePath("/schedule");
