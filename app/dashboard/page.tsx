@@ -900,28 +900,28 @@ export default async function DashboardPage() {
                   </div>
                 </div>
               </summary>
-              <div className="border-t border-ink/8 bg-ink px-5 py-4 text-chalk">
-                <p className="text-xs text-chalk/50">{competitionDateLabel(nextComp)}</p>
+              <div className="border-t border-ink/8 bg-mist/40 px-5 py-4">
+                <p className="text-xs text-ink/45">{competitionDateLabel(nextComp)}</p>
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="rounded-2xl bg-white/8 px-3 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Recovery</p>
-                    <p className={`mt-1.5 text-base font-bold ${recovery.band === "green" ? "text-emerald-400" : recovery.band === "yellow" ? "text-amber-400" : "text-red-400"}`}>
+                  <div className="rounded-2xl bg-white border border-ink/8 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/40">Recovery</p>
+                    <p className={`mt-1.5 text-base font-bold ${recovery.band === "green" ? "text-emerald-600" : recovery.band === "yellow" ? "text-amber-500" : "text-red-500"}`}>
                       {recovery.band === "green" ? "Green" : recovery.band === "yellow" ? "Yellow" : "Red"}
                     </p>
-                    <p className="text-xs text-chalk/40">{recovery.score}/100</p>
+                    <p className="text-xs text-ink/40">{recovery.score}/100</p>
                   </div>
-                  <div className="rounded-2xl bg-white/8 px-3 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Peak</p>
-                    <p className="mt-1.5 text-base font-bold text-chalk">{format(peakForecast.predictedPeakDate, "MMM d")}</p>
-                    <p className="text-xs text-chalk/40">{peakForecast.confidence}% conf.</p>
+                  <div className="rounded-2xl bg-white border border-ink/8 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/40">Peak</p>
+                    <p className="mt-1.5 text-base font-bold text-ink">{format(peakForecast.predictedPeakDate, "MMM d")}</p>
+                    <p className="text-xs text-ink/40">{peakForecast.confidence}% conf.</p>
                   </div>
-                  <div className="rounded-2xl bg-white/8 px-3 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Form</p>
-                    <p className="mt-1.5 text-base font-bold text-chalk">{peakForecast.peakScore}/100</p>
-                    <p className="text-xs text-chalk/40">peak form</p>
+                  <div className="rounded-2xl bg-white border border-ink/8 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/40">Form</p>
+                    <p className="mt-1.5 text-base font-bold text-ink">{peakForecast.peakScore}/100</p>
+                    <p className="text-xs text-ink/40">peak form</p>
                   </div>
                 </div>
-                <p className="mt-3 text-xs leading-5 text-chalk/50">{peakForecast.rationale}</p>
+                <p className="mt-3 text-xs leading-5 text-ink/50">{peakForecast.rationale}</p>
               </div>
             </details>
           ) : (
