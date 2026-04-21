@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Activity, Clock3, Flag, Gauge, ListChecks, Zap } from "lucide-react";
+import { Activity, Clock3, Flag, Gauge, ListChecks, MessageCircle, Send, Zap } from "lucide-react";
 import { logSessionSurveyAction } from "@/app/actions";
 import { ClimbTimer } from "@/components/climb-timer";
 import { formatSessionDuration } from "@/lib/format";
@@ -30,15 +30,23 @@ type SessionData = {
   };
 };
 
-const SECTIONS = ["overview", "warmup", "main", "survey"] as const;
+const SECTIONS = ["overview", "warmup", "main", "coach", "survey"] as const;
 type SectionId = (typeof SECTIONS)[number];
 
 const SECTION_LABELS: Record<SectionId, string> = {
   overview: "Overview",
   warmup: "Warm-up",
   main: "What to do",
+  coach: "Ask coach",
   survey: "How did it go?",
 };
+
+const QUICK_PROMPTS = [
+  "How hard should I push today?",
+  "What does a successful session look like?",
+  "I'm tired — should I scale back?",
+  "What's the most important thing to focus on?",
+];
 
 function formatClock(value?: string | null) {
   if (!value) return null;
@@ -107,12 +115,60 @@ function ScaleRow({ label, value, onChange }: { label: string; value: number; on
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+type ChatMessage = { role: "user" | "coach"; text: string };
+
 export function SessionPlayer({ session }: { session: SessionData }) {
   const [sectionIndex, setSectionIndex] = useState(0);
   const [isPending, startTransition] = useTransition();
   const [survey, setSurvey] = useState({
     skin: 7, soreness: 3, energy: 7, actualMinutes: session.durationMinutes, notes: "",
   });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  async function sendMessage(question: string) {
+    if (!question.trim() || isStreaming) return;
+    setChatInput("");
+    setMessages((m) => [...m, { role: "user", text: question }]);
+    setIsStreaming(true);
+
+    let buffer = "";
+    setMessages((m) => [...m, { role: "coach", text: "" }]);
+
+    try {
+      const res = await fetch("/api/coach/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: session.id, question }),
+      });
+      if (!res.ok || !res.body) throw new Error("Request failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const text = buffer;
+        setMessages((m) => {
+          const next = [...m];
+          next[next.length - 1] = { role: "coach", text };
+          return next;
+        });
+      }
+    } catch {
+      setMessages((m) => {
+        const next = [...m];
+        next[next.length - 1] = { role: "coach", text: "Couldn't reach the coach right now. Try again." };
+        return next;
+      });
+    } finally {
+      setIsStreaming(false);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    }
+  }
 
   const currentSection = SECTIONS[sectionIndex];
   const hasHangboard = session.durationMinutes > 0;
@@ -151,6 +207,7 @@ export function SessionPlayer({ session }: { session: SessionData }) {
     overview: "",
     warmup: session.warmup,
     main: session.mainWork,
+    coach: "",
     survey: "",
   };
 
@@ -322,6 +379,80 @@ export function SessionPlayer({ session }: { session: SessionData }) {
               </>
             )}
           </>
+        )}
+
+        {currentSection === "coach" && (
+          <div className="space-y-4">
+            {/* Intro */}
+            <div className="rounded-[20px] border border-pine/15 bg-pine/5 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <MessageCircle className="h-4 w-4 text-pine" />
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">AI Coach</p>
+              </div>
+              <p className="text-sm text-ink/70 leading-5">Ask anything about today's session — strategy, effort level, what to focus on, or what to do if you're not feeling it.</p>
+            </div>
+
+            {/* Quick prompts */}
+            {messages.length === 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {QUICK_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => sendMessage(prompt)}
+                    disabled={isStreaming}
+                    className="rounded-2xl border border-ink/10 bg-white/80 px-3 py-3 text-left text-xs font-medium text-ink/70 transition hover:border-pine/30 hover:text-pine disabled:opacity-40"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Message thread */}
+            {messages.length > 0 && (
+              <div className="space-y-3">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[85%] rounded-[18px] px-4 py-3 text-sm leading-6 ${
+                      msg.role === "user"
+                        ? "bg-pine text-chalk"
+                        : "border border-ink/10 bg-white/90 text-ink"
+                    }`}>
+                      {msg.text || (isStreaming && i === messages.length - 1 ? (
+                        <span className="inline-flex gap-1">
+                          <span className="animate-bounce">·</span>
+                          <span className="animate-bounce [animation-delay:0.1s]">·</span>
+                          <span className="animate-bounce [animation-delay:0.2s]">·</span>
+                        </span>
+                      ) : "")}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+            )}
+
+            {/* Input */}
+            <div className="flex gap-2">
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(chatInput); } }}
+                placeholder="Ask the coach…"
+                disabled={isStreaming}
+                className="flex-1 rounded-full border border-ink/10 bg-white px-4 py-2.5 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15 disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => sendMessage(chatInput)}
+                disabled={!chatInput.trim() || isStreaming}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-pine text-chalk transition hover:bg-ink disabled:opacity-40"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         )}
 
         {currentSection === "survey" && (
