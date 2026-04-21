@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { Activity, Clock3, Flag, Gauge, ListChecks, Zap } from "lucide-react";
 import { logSessionSurveyAction } from "@/app/actions";
 import { ClimbTimer } from "@/components/climb-timer";
+import { formatSessionDuration } from "@/lib/format";
 
 type SessionData = {
   id: string;
@@ -34,9 +36,54 @@ type SectionId = (typeof SECTIONS)[number];
 const SECTION_LABELS: Record<SectionId, string> = {
   overview: "Overview",
   warmup: "Warm-up",
-  main: "Main work",
+  main: "What to do",
   survey: "How did it go?",
 };
+
+function formatClock(value?: string | null) {
+  if (!value) return null;
+  const [hoursRaw, minutesRaw] = value.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const twelve = hours % 12 || 12;
+  return `${twelve}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
+function splitIntoSteps(text: string, maxItems = 4) {
+  return text
+    .replace(/\s+/g, " ")
+    .split(/(?:\.\s+|\n+|•|;)/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function buildWarmupFlow(session: SessionData) {
+  return [
+    {
+      title: "Get warm",
+      detail: "5-10 minutes of easy movement: bike, brisk walk, light jog, or easy traversing.",
+      duration: "5-10 min",
+    },
+    {
+      title: "Open the body",
+      detail: "Shoulders, wrists, hips, and ankles. Keep it smooth, not aggressive.",
+      duration: "3-5 min",
+    },
+    {
+      title: "Easy climbing",
+      detail: "Climb well below your limit and gradually add bigger moves and stronger pulling.",
+      duration: "10-15 min",
+    },
+    {
+      title: "Session primer",
+      detail: session.warmup || "Do 2-3 specific rehearsal sets before the main work starts.",
+      duration: "5-10 min",
+    },
+  ];
+}
 
 // ── Scale picker (inline, compact) ────────────────────────────────────────────
 
@@ -70,17 +117,8 @@ export function SessionPlayer({ session }: { session: SessionData }) {
   const currentSection = SECTIONS[sectionIndex];
   const hasHangboard = session.durationMinutes > 0;
   const startX = useRef<number | null>(null);
-
-  function formatClock(value?: string | null) {
-    if (!value) return null;
-    const [hoursRaw, minutesRaw] = value.split(":");
-    const hours = Number(hoursRaw);
-    const minutes = Number(minutesRaw);
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
-    const suffix = hours >= 12 ? "PM" : "AM";
-    const twelve = hours % 12 || 12;
-    return `${twelve}:${String(minutes).padStart(2, "0")} ${suffix}`;
-  }
+  const warmupFlow = buildWarmupFlow(session);
+  const mainSteps = splitIntoSteps(session.mainWork);
 
   // Swipe to advance
   function handleTouchStart(e: React.TouchEvent) {
@@ -148,104 +186,140 @@ export function SessionPlayer({ session }: { session: SessionData }) {
 
         {currentSection === "overview" && (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-[18px] border border-pine/10 bg-pine/5 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">Today</p>
-                <p className="mt-2 text-sm leading-6 text-ink">
+                <Clock3 className="h-4 w-4 text-pine" />
+                <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">Time</p>
+                <p className="mt-1 text-sm font-semibold text-ink">
                   {session.scheduledStartTime && session.scheduledEndTime
-                    ? `${session.scheduledWindowLabel || "Scheduled"} • ${formatClock(session.scheduledStartTime)}-${formatClock(session.scheduledEndTime)}`
-                    : `${session.durationMinutes} minute session`}
+                    ? `${formatClock(session.scheduledStartTime)}-${formatClock(session.scheduledEndTime)}`
+                    : formatSessionDuration(session.durationMinutes)}
                 </p>
               </div>
               <div className="rounded-[18px] border border-ink/10 bg-white p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">Flow</p>
-                <p className="mt-2 text-sm leading-6 text-ink">
-                  Hangboard activation, advanced warm-up, main activity, then route analysis.
-                </p>
+                <Gauge className="h-4 w-4 text-pine" />
+                <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">How hard</p>
+                <p className="mt-1 text-sm font-semibold text-ink">{session.intensityLabel}</p>
+              </div>
+              <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 p-4">
+                <Flag className="h-4 w-4 text-emerald-700" />
+                <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Win today</p>
+                <p className="mt-1 text-sm text-emerald-950/80">{session.coach.win}</p>
               </div>
             </div>
 
             <div className="rounded-[20px] border border-ink/10 bg-white/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Session overview</p>
-              <div className="mt-3 space-y-3 text-sm text-ink/75">
-                <p><span className="font-semibold text-ink">Why this session:</span> {session.whyChosen}</p>
-                <p><span className="font-semibold text-ink">Goal:</span> {session.coach.goal}</p>
-                <p><span className="font-semibold text-ink">Pacing:</span> {session.coach.pacing}</p>
-                <p><span className="font-semibold text-ink">Win:</span> {session.coach.win}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Simple plan</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[16px] border border-pine/10 bg-pine/5 p-4">
+                  <Activity className="h-4 w-4 text-pine" />
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-pine">Goal</p>
+                  <p className="mt-1 text-sm leading-6 text-ink">{session.coach.goal}</p>
+                </div>
+                <div className="rounded-[16px] border border-ink/10 bg-white p-4">
+                  <Zap className="h-4 w-4 text-pine" />
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-pine">Effort</p>
+                  <p className="mt-1 text-sm leading-6 text-ink">{session.coach.effort}</p>
+                </div>
+                <div className="rounded-[16px] border border-ink/10 bg-white p-4">
+                  <ListChecks className="h-4 w-4 text-pine" />
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-pine">Keep in mind</p>
+                  <p className="mt-1 text-sm leading-6 text-ink">{session.coach.pacing}</p>
+                </div>
               </div>
+              <details className="mt-4 rounded-[16px] border border-ink/8 bg-mist/40 p-4">
+                <summary className="cursor-pointer list-none text-sm font-semibold text-ink">Why this session is here</summary>
+                <p className="mt-3 text-sm leading-6 text-ink/75">{session.whyChosen}</p>
+              </details>
             </div>
           </div>
         )}
 
         {currentSection !== "survey" && currentSection !== "overview" && (
           <>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[18px] border border-pine/10 bg-pine/5 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">Goal</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{session.coach.goal}</p>
-              </div>
-              <div className="rounded-[18px] border border-ink/10 bg-white p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">How Hard</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{session.coach.effort}</p>
-              </div>
-            </div>
-
-            {currentSection === "warmup" && hasHangboard && (
-              <>
-                <div className="rounded-[20px] border border-clay/10 bg-clay/5 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-clay">1. Hangboard warm-up</p>
-                  <p className="mt-2 text-sm leading-6 text-ink/75">
-                    Start with a short finger activation block before the bigger warm-up. Use the built-in timer and let the beeps cue each switch.
-                  </p>
-                </div>
-                <ClimbTimer
-                  title="Hangboard timer"
-                  description="Customize each section, save your default flow, and run the warm-up without leaving the session."
-                  storageKey="climb:session-hang-timer"
-                />
-                <div className="rounded-[20px] bg-white/80 border border-ink/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">2. Advanced warm-up</p>
-                  <p className="mt-2 text-base leading-7 text-ink whitespace-pre-line">
-                    {sectionContent[currentSection]}
-                  </p>
-                </div>
-              </>
-            )}
-
-            {currentSection === "main" && (
-              <>
-                <div className="rounded-[20px] bg-white/80 border border-ink/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">3. Main activity</p>
-                  <p className="mt-2 text-base leading-7 text-ink whitespace-pre-line">
-                    {sectionContent[currentSection]}
-                  </p>
-                </div>
-                <div className="rounded-[20px] border border-ink/10 bg-mist/30 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">4. Finish and log</p>
-                  <p className="mt-2 text-base leading-7 text-ink whitespace-pre-line">
-                    {session.cooldown}
-                  </p>
-                </div>
-              </>
-            )}
-
             {currentSection === "warmup" && (
-              <div className="space-y-3">
-                <div className="rounded-[16px] bg-pine/5 border border-pine/10 px-4 py-3">
-                  <p className="text-xs font-semibold text-pine mb-1">Why this session</p>
-                  <p className="text-sm text-ink/70 leading-relaxed">{session.whyChosen}</p>
+              <>
+                {hasHangboard ? (
+                  <>
+                    <div className="rounded-[20px] border border-clay/10 bg-clay/5 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-clay">1. Hangboard warm-up</p>
+                      <p className="mt-2 text-sm leading-6 text-ink/75">
+                        Start with a short finger activation block before the bigger warm-up. Use the built-in timer and let the beeps cue each switch.
+                      </p>
+                    </div>
+                    <ClimbTimer
+                      title="Hangboard timer"
+                      description="Customize each section, save your default flow, and run the warm-up without leaving the session."
+                      storageKey="climb:session-hang-timer"
+                    />
+                  </>
+                ) : null}
+                <div className="grid gap-3">
+                  {warmupFlow.map((item, index) => (
+                    <div key={item.title} className="rounded-[18px] border border-ink/10 bg-white/80 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pine text-sm font-semibold text-chalk">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-ink">{item.title}</p>
+                          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-pine/70">{item.duration}</p>
+                          <p className="mt-2 text-sm leading-6 text-ink/75">{item.detail}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="rounded-[16px] border border-ink/10 bg-white px-4 py-3">
-                  <p className="text-xs font-semibold text-pine mb-1">Pacing cue</p>
-                  <p className="text-sm text-ink/70 leading-relaxed">{session.coach.pacing}</p>
-                </div>
-              </div>
+                <details className="rounded-[18px] border border-ink/10 bg-white px-4 py-3">
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink">Full warm-up note</summary>
+                  <p className="mt-3 text-sm leading-6 text-ink/70 whitespace-pre-line">{sectionContent[currentSection]}</p>
+                </details>
+              </>
             )}
+
             {currentSection === "main" && (
-              <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <p className="text-xs font-semibold text-emerald-700 mb-1">What counts as a win</p>
-                <p className="text-sm text-emerald-950/80 leading-relaxed">{session.coach.win}</p>
-              </div>
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[18px] border border-pine/10 bg-pine/5 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">Goal</p>
+                    <p className="mt-2 text-sm leading-6 text-ink">{session.coach.goal}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-ink/10 bg-white p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">How hard</p>
+                    <p className="mt-2 text-sm leading-6 text-ink">{session.coach.effort}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Win</p>
+                    <p className="mt-2 text-sm leading-6 text-emerald-950/80">{session.coach.win}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] bg-white/80 border border-ink/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">What to do</p>
+                  <div className="mt-3 space-y-3">
+                    {(mainSteps.length ? mainSteps : [sectionContent[currentSection]]).map((step, index) => (
+                      <div key={`${index}-${step}`} className="rounded-[16px] border border-ink/8 bg-mist/30 p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-semibold text-chalk">
+                            {index + 1}
+                          </div>
+                          <p className="text-sm leading-6 text-ink">{step}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-ink/10 bg-mist/30 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Finish</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{session.cooldown}</p>
+                </div>
+
+                <details className="rounded-[16px] border border-ink/10 bg-white px-4 py-3">
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink">Full coach wording</summary>
+                  <p className="mt-3 text-sm leading-6 text-ink/70 whitespace-pre-line">{sectionContent[currentSection]}</p>
+                </details>
+              </>
             )}
           </>
         )}

@@ -5,8 +5,8 @@ import { ClimbTimer } from "@/components/climb-timer";
 import { Card } from "@/components/ui/card";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { getActiveAthlete } from "@/lib/data";
+import { formatSessionDuration, formatSessionType, intensityClass, intensityLabel } from "@/lib/format";
 import { getUpcomingSession } from "@/lib/plan-progress";
-import { formatSessionType, intensityClass, intensityLabel } from "@/lib/format";
 import { buildPlanAdvice } from "@/lib/plan-advisor";
 
 const WARMUP_ITEMS = [
@@ -61,7 +61,7 @@ export default async function TrainPage() {
               {formatSessionType(sessionEntry.session.sessionType)}
             </span>
             <span className="rounded-full bg-chalk/10 px-3 py-1 text-xs font-semibold text-chalk/80">
-              {sessionEntry.session.durationMinutes} min
+              {formatSessionDuration(sessionEntry.session.durationMinutes)}
             </span>
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${intensityClass(sessionEntry.session.intensity)}`}>
               {intensityLabel(sessionEntry.session.intensity)}
@@ -147,7 +147,7 @@ export default async function TrainPage() {
                 >
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink/40">{s.dayLabel}</p>
                   <p className="mt-1 text-xs font-semibold leading-snug">{s.title}</p>
-                  <p className="mt-1 text-[10px] text-ink/45">{s.durationMinutes} min</p>
+                  <p className="mt-1 text-[10px] text-ink/45">{formatSessionDuration(s.durationMinutes)}</p>
                 </Link>
               );
             })}

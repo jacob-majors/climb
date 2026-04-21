@@ -24,7 +24,7 @@ import { getActiveAthlete } from "@/lib/data";
 import { auth } from "@clerk/nextjs/server";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { dayNames, formatDate, formatSessionType, intensityClass, intensityLabel } from "@/lib/format";
+import { dayNames, formatDate, formatSessionDuration, formatSessionType, intensityClass, intensityLabel } from "@/lib/format";
 import { buildAdherenceSummary, getSessionDate, getSessionEntry, getUpcomingSession, nextOccurrenceOfDay } from "@/lib/plan-progress";
 import { getRecoveryBand, recoveryClass, recoveryLabel } from "@/lib/recovery";
 import { buildPeakForecast } from "@/lib/peak-forecast";
@@ -1032,7 +1032,7 @@ export default async function DashboardPage() {
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-ink/60">
-                {formatSessionType(sessionEntry.session.sessionType)} • {sessionEntry.session.durationMinutes} min
+                {formatSessionType(sessionEntry.session.sessionType)} • {formatSessionDuration(sessionEntry.session.durationMinutes)}
               </p>
               <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${intensityClass(sessionEntry.session.intensity)}`}>
                 {intensityLabel(sessionEntry.session.intensity)}
@@ -1042,7 +1042,7 @@ export default async function DashboardPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="rounded-2xl bg-mist p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Duration</p>
-                <p className="mt-2 text-lg font-semibold text-ink">{sessionEntry.session.durationMinutes}m</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{formatSessionDuration(sessionEntry.session.durationMinutes)}</p>
               </div>
               <div className="rounded-2xl bg-mist p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Load</p>

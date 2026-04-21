@@ -20,7 +20,7 @@ const INTENSITY_WEIGHT: Record<IntensityLevel, number> = {
   LOW: 1,
   MODERATE: 2,
   HIGH: 3,
-  MAX: 4,
+  PEAK: 4,
 };
 
 export function buildPlanAdvice(sessions: SessionSummary[]): PlanAdvice {
@@ -61,15 +61,15 @@ export function buildPlanAdvice(sessions: SessionSummary[]): PlanAdvice {
   }
 
   // Too many max-intensity sessions
-  const maxCount = planned.filter((s) => s.intensity === "MAX").length;
-  if (maxCount >= 2) {
-    insights.push(`${maxCount} max-effort sessions this week is heavy CNS demand.`);
-    tweaks.push("Limit max efforts to once per week unless this is a true peak week.");
+  const peakCount = planned.filter((s) => s.intensity === IntensityLevel.PEAK).length;
+  if (peakCount >= 2) {
+    insights.push(`${peakCount} peak sessions this week is a lot of high-end stress.`);
+    tweaks.push("Keep peak days rare unless this week is built around competition sharpening.");
   }
 
   // Limit/power overload
   const limitCount = planned.filter(
-    (s) => s.sessionType === "LIMIT_BOULDERING" || s.sessionType === "POWER",
+    (s) => s.sessionType === SessionType.LIMIT_BOULDERING || s.sessionType === SessionType.RECRUITMENT_POWER,
   ).length;
   if (limitCount >= 3) {
     insights.push("Three or more limit/power sessions risks overuse of finger tendons.");

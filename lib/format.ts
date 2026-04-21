@@ -63,3 +63,14 @@ export function intensityClass(intensity: IntensityLevel) {
       return "bg-mist text-ink";
   }
 }
+
+export function formatSessionDuration(minutes: number) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "Recovery day";
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+
+  if (hours <= 0) return `${minutes} min`;
+  if (remainder === 0) return `${hours} hr`;
+  return `${hours} hr ${remainder} min`;
+}
