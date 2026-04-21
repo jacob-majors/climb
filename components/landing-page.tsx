@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CalendarClock, ChartNoAxesCombined, Check, Route, Sparkles, WandSparkles } from "lucide-react";
-import { BrandGlyph } from "@/components/brand-mark";
 import { ProgressRing } from "@/components/progress-ring";
 
 function clamp(value: number, min = 0, max = 1) {
@@ -326,14 +325,10 @@ export function PricingSection({ standalone = false }: { standalone?: boolean })
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-clay/12 text-clay">
                     <WandSparkles className="h-5 w-5" />
                   </div>
-                ) : (
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pine/10 text-pine">
-                    <BrandGlyph className="h-11 w-11 rounded-[1rem] border-none shadow-none" />
-                  </div>
-                )}
+                ) : null}
                 <div>
                   <p className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${isPro ? "text-clay" : "text-ink/45"}`}>
-                    {isPro ? "climb. Pro" : "Free"}
+                    {isPro ? "climb. Pro" : "climb."}
                   </p>
                   <div className="mt-2 flex items-end gap-2">
                     <span className="text-5xl font-black text-ink">{plan.price}</span>
@@ -409,9 +404,9 @@ export function LandingPage() {
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-7 text-ink/72 sm:text-lg">
-              <span className="inline-flex translate-y-1.5 pr-2">
-                <BrandGlyph className="h-8 w-8 rounded-[0.95rem]" />
-              </span>
+              <span className="font-black lowercase tracking-tight text-ink">
+                climb<span className="text-clay">.</span>
+              </span>{" "}
               turns school, work, comps, route logs, recovery, and real calendar gaps into sessions you can actually place, run, and review on your phone.
             </p>
 

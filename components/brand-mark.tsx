@@ -55,10 +55,16 @@ export function BrandMark({ href = "/", compact = false }: BrandMarkProps) {
     <Link
       href={href}
       aria-label="climb."
-      className="group inline-flex items-center gap-3 rounded-full border border-ink/12 bg-chalk/95 px-3 py-2 shadow-[0_10px_28px_rgba(15,36,32,0.12)] backdrop-blur transition hover:-translate-y-0.5 hover:border-clay/40"
+      className="group inline-flex items-center rounded-full border border-ink/12 bg-chalk/95 px-4 py-2 shadow-[0_10px_28px_rgba(15,36,32,0.12)] backdrop-blur transition hover:-translate-y-0.5 hover:border-clay/40"
     >
-      <BrandGlyph className={clsx("rounded-[1rem]", compact ? "h-8 w-8" : "h-9 w-9")} />
-      <span className="sr-only">climb.</span>
+      <span
+        className={clsx(
+          "font-black lowercase leading-none tracking-tight text-ink",
+          compact ? "text-[0.95rem]" : "text-[1.1rem]",
+        )}
+      >
+        climb<span className="text-clay" style={{ letterSpacing: "-0.02em" }}>.</span>
+      </span>
     </Link>
   );
 }
