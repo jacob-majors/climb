@@ -21,6 +21,61 @@ import { generateTrainingPlan } from "@/lib/training-engine";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { ensureFreshTrainingPlan } from "@/lib/plan-sync";
 
+const YDS_ORDER = [
+  "5.5","5.6","5.7","5.8","5.9",
+  "5.10a","5.10b","5.10c","5.10d",
+  "5.11a","5.11b","5.11c","5.11d",
+  "5.12a","5.12b","5.12c","5.12d",
+  "5.13a","5.13b","5.13c","5.13d",
+  "5.14a","5.14b","5.14c","5.14d",
+  "5.15a","5.15b","5.15c","5.15d",
+];
+
+const V_ORDER = [
+  "V0","V1","V2","V3","V4","V5","V6","V7","V8",
+  "V9","V10","V11","V12","V13","V14","V15","V16","V17",
+];
+
+function gradeIndex(grade: string, scale: GradeScale): number {
+  const order = scale === GradeScale.V_SCALE ? V_ORDER : YDS_ORDER;
+  const normalized = grade.trim().toUpperCase().replace(/^v/i, (m) => m.toUpperCase());
+  const idx = order.findIndex((g) => g.toUpperCase() === normalized.toUpperCase());
+  return idx;
+}
+
+async function maybeUpdateProfileGrades(
+  userId: string,
+  grade: string,
+  scale: GradeScale,
+  isBoulder: boolean,
+  isSent: boolean,
+) {
+  if (!isSent) return;
+  const profile = await prisma.climbingProfile.findUnique({ where: { userId } });
+  if (!profile) return;
+  const newIdx = gradeIndex(grade, scale);
+  if (newIdx < 0) return;
+
+  const updates: Record<string, string> = {};
+
+  if (isBoulder) {
+    const maxIdx = profile.boulderMaxGrade ? gradeIndex(profile.boulderMaxGrade, GradeScale.V_SCALE) : -1;
+    if (newIdx > maxIdx) updates.boulderMaxGrade = grade;
+    const flashIdx = profile.boulderFlashGrade ? gradeIndex(profile.boulderFlashGrade, GradeScale.V_SCALE) : -1;
+    if (newIdx > flashIdx) updates.boulderFlashGrade = grade;
+  } else {
+    const rpIdx = profile.redpointGrade ? gradeIndex(profile.redpointGrade, GradeScale.YDS) : -1;
+    if (newIdx > rpIdx) updates.redpointGrade = grade;
+    const flashIdx = profile.flashGrade ? gradeIndex(profile.flashGrade, GradeScale.YDS) : -1;
+    if (newIdx > flashIdx) updates.flashGrade = grade;
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await prisma.climbingProfile.update({ where: { userId }, data: updates });
+    revalidatePath("/profile");
+  }
+}
+
 function text(formData: FormData, key: string) {
   return String(formData.get(key) || "").trim();
 }
@@ -318,6 +373,14 @@ export async function saveRouteEntryAction(formData: FormData) {
       wallHeight: wallHeight || existingGymRoute?.wallHeight || null,
     },
   });
+
+  const finalGrade = gradeInput || existingGymRoute?.grade;
+  const finalScale = (gradeScale || existingGymRoute?.gradeScale || GradeScale.YDS) as GradeScale;
+  const finalClimbType = (climbType || existingGymRoute?.climbType || ClimbType.ROUTE) as ClimbType;
+  const wasSent = !text(formData, "fallReason");
+  if (finalGrade) {
+    await maybeUpdateProfileGrades(userId, finalGrade, finalScale, finalClimbType === ClimbType.BOULDER, wasSent);
+  }
 
   await ensureFreshTrainingPlan(userId);
 

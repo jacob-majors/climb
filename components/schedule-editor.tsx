@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Discipline } from "@prisma/client";
 import { GripVertical, Pencil } from "lucide-react";
 import { saveScheduleAction } from "@/app/actions";
@@ -51,6 +52,8 @@ type ScheduleEditorProps = {
   initialAvailability: Record<string, number>;
   initialTrainingAvailability: TrainingAvailability;
   passthrough: SchedulePassthrough;
+  initialMode?: "view" | "edit";
+  doneHref?: string;
 };
 
 // ── Type / load styling ───────────────────────────────────────────────────────
@@ -432,8 +435,10 @@ export function ScheduleEditor({
   initialAvailability,
   initialTrainingAvailability,
   passthrough,
+  initialMode = "view",
+  doneHref,
 }: ScheduleEditorProps) {
-  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [mode, setMode] = useState<"view" | "edit">(initialMode);
   const [events, setEvents] = useState<CalendarEntry[]>(initialEvents);
   const [competitions, setCompetitions] = useState<CompetitionDraft[]>(
     initialCompetitions.length ? initialCompetitions : [emptyCompetition()],
@@ -557,15 +562,24 @@ export function ScheduleEditor({
         <div className="flex items-center gap-2">
           {isEditing ? (
             <>
-              <button type="button" onClick={() => {
-                setMode("view");
-                setExpandedIndex(null);
-                setExpandedCompetitionIndex(null);
-                setSelectedIndices([]);
-              }}
-                className="rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold text-ink/60 hover:border-ink/25 hover:text-ink transition-colors">
-                Done
-              </button>
+              {doneHref ? (
+                <Link
+                  href={doneHref}
+                  className="rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold text-ink/60 hover:border-ink/25 hover:text-ink transition-colors"
+                >
+                  Done
+                </Link>
+              ) : (
+                <button type="button" onClick={() => {
+                  setMode("view");
+                  setExpandedIndex(null);
+                  setExpandedCompetitionIndex(null);
+                  setSelectedIndices([]);
+                }}
+                  className="rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold text-ink/60 hover:border-ink/25 hover:text-ink transition-colors">
+                  Done
+                </button>
+              )}
               <SubmitButton label="Save schedule" pendingLabel="Saving…" />
             </>
           ) : (

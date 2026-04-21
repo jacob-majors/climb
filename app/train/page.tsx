@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, CheckCircle2, Circle, Play } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
 import { ClimbTimer } from "@/components/climb-timer";
 import { TrainSessionWorkbench } from "@/components/train-session-workbench";
 import { Card } from "@/components/ui/card";
@@ -164,6 +164,103 @@ export default async function TrainPage() {
         </div>
       )}
 
+      {/* Workout library */}
+      <div className="space-y-3">
+        <p className="px-1 text-xs font-semibold uppercase tracking-[0.2em] text-ink/40">Workout types</p>
+
+        {/* Bouldering */}
+        <div className="rounded-[24px] border border-ink/10 bg-white/80 overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-ink/8">
+            <span className="h-2 w-2 rounded-full bg-purple-500 flex-shrink-0" />
+            <p className="text-sm font-semibold text-ink">Bouldering</p>
+          </div>
+          <div className="divide-y divide-ink/5">
+            {[
+              { label: "Limit bouldering", desc: "Push your max — hard moves, full rest between attempts", tag: "Power" },
+              { label: "Projecting", desc: "Work a specific problem, break down sequences", tag: "Skills" },
+              { label: "Recruitment / Power", desc: "Campus, dynos, max-effort single moves", tag: "Power" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{item.label}</p>
+                  <p className="text-xs text-ink/50 mt-0.5 leading-4">{item.desc}</p>
+                </div>
+                <span className="flex-shrink-0 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-0.5 text-[10px] font-semibold text-purple-700">{item.tag}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Routes / Ropes */}
+        <div className="rounded-[24px] border border-ink/10 bg-white/80 overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-ink/8">
+            <span className="h-2 w-2 rounded-full bg-pine flex-shrink-0" />
+            <p className="text-sm font-semibold text-ink">Routes / Ropes</p>
+          </div>
+          <div className="divide-y divide-ink/5">
+            {[
+              { label: "Lead endurance", desc: "Volume on routes at and below your redpoint — build fitness", tag: "Endurance" },
+              { label: "Power endurance", desc: "Hard sequences with short rest — train the pump ceiling", tag: "PE" },
+              { label: "ARC training", desc: "Continuous climbing 20–45 min, barely pumped — aerobic base", tag: "Aerobic" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{item.label}</p>
+                  <p className="text-xs text-ink/50 mt-0.5 leading-4">{item.desc}</p>
+                </div>
+                <span className="flex-shrink-0 rounded-full border border-moss/30 bg-moss/10 px-2.5 py-0.5 text-[10px] font-semibold text-pine">{item.tag}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Finger strength */}
+        <div className="rounded-[24px] border border-ink/10 bg-white/80 overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-ink/8">
+            <span className="h-2 w-2 rounded-full bg-clay flex-shrink-0" />
+            <p className="text-sm font-semibold text-ink">Finger strength</p>
+          </div>
+          <div className="divide-y divide-ink/5">
+            {[
+              { label: "Hangboard — max hangs", desc: "7–10 sec hangs, full rest — build raw finger strength", tag: "Strength" },
+              { label: "Hangboard — repeaters", desc: "7 on / 3 off × 6 reps — train muscular endurance", tag: "Endurance" },
+              { label: "Fingerboard — density", desc: "High-density sets at moderate load — add volume carefully", tag: "Volume" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{item.label}</p>
+                  <p className="text-xs text-ink/50 mt-0.5 leading-4">{item.desc}</p>
+                </div>
+                <span className="flex-shrink-0 rounded-full border border-clay/25 bg-clay/8 px-2.5 py-0.5 text-[10px] font-semibold text-clay">{item.tag}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Movement & Supplemental */}
+        <div className="rounded-[24px] border border-ink/10 bg-white/80 overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-ink/8">
+            <span className="h-2 w-2 rounded-full bg-teal-500 flex-shrink-0" />
+            <p className="text-sm font-semibold text-ink">Movement & Supplemental</p>
+          </div>
+          <div className="divide-y divide-ink/5">
+            {[
+              { label: "Technique drills", desc: "Footwork, hip positioning, clipping practice", tag: "Skills" },
+              { label: "Antagonist strength", desc: "Push-ups, shoulder stability, wrist extension", tag: "Injury prev." },
+              { label: "Core & mobility", desc: "Core activation, hip flexors, shoulder rotation", tag: "Prehab" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{item.label}</p>
+                  <p className="text-xs text-ink/50 mt-0.5 leading-4">{item.desc}</p>
+                </div>
+                <span className="flex-shrink-0 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-[10px] font-semibold text-teal-700">{item.tag}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* AI plan check */}
       {advice && (
         <Card className="space-y-3">
@@ -192,25 +289,81 @@ export default async function TrainPage() {
         </Card>
       )}
 
-      {/* Interval timer */}
-      <Card className="space-y-4">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-pine">Interval timer</p>
-          <p className="mt-1 text-sm font-semibold text-ink">Hangboard warmup</p>
-          <p className="text-xs text-ink/50">7 on / 5 rest — move down edge sizes each round.</p>
-        </div>
+      {/* Interval timers */}
+      <div className="space-y-3">
+        <p className="px-1 text-xs font-semibold uppercase tracking-[0.2em] text-ink/40">Interval timers</p>
 
-        <ClimbTimer
-          storageKey="climb:train-timer"
-          defaultConfig={{
-            rounds: 8,
-            phases: [
-              { id: "hang", label: "Hang", durationSec: 7, tone: "clay" },
-              { id: "reset", label: "Reset", durationSec: 5, tone: "pine" },
-            ],
-          }}
-        />
-      </Card>
+        <Card className="space-y-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-clay">Finger strength</p>
+            <p className="mt-1 text-sm font-semibold text-ink">Max hangs</p>
+            <p className="text-xs text-ink/50">7 sec hang / 3 min rest — go heavy, full recovery between sets.</p>
+          </div>
+          <ClimbTimer
+            storageKey="climb:train-timer-maxhang"
+            defaultConfig={{
+              rounds: 6,
+              phases: [
+                { id: "hang", label: "Hang", durationSec: 7, tone: "clay" },
+                { id: "rest", label: "Rest", durationSec: 180, tone: "pine" },
+              ],
+            }}
+          />
+        </Card>
+
+        <Card className="space-y-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-clay">Finger strength</p>
+            <p className="mt-1 text-sm font-semibold text-ink">Repeaters</p>
+            <p className="text-xs text-ink/50">7 on / 3 off × 6 reps, 3 min between sets — muscular endurance.</p>
+          </div>
+          <ClimbTimer
+            storageKey="climb:train-timer-repeaters"
+            defaultConfig={{
+              rounds: 6,
+              phases: [
+                { id: "hang", label: "Hang", durationSec: 7, tone: "clay" },
+                { id: "rest", label: "Rest", durationSec: 3, tone: "pine" },
+              ],
+            }}
+          />
+        </Card>
+
+        <Card className="space-y-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-pine">Routes / Ropes</p>
+            <p className="mt-1 text-sm font-semibold text-ink">Power endurance</p>
+            <p className="text-xs text-ink/50">4 min on-route / 4 min rest — hard climbing, short recovery.</p>
+          </div>
+          <ClimbTimer
+            storageKey="climb:train-timer-pe"
+            defaultConfig={{
+              rounds: 4,
+              phases: [
+                { id: "climb", label: "Climb", durationSec: 240, tone: "clay" },
+                { id: "rest", label: "Rest", durationSec: 240, tone: "pine" },
+              ],
+            }}
+          />
+        </Card>
+
+        <Card className="space-y-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-pine">Routes / Ropes</p>
+            <p className="mt-1 text-sm font-semibold text-ink">ARC training</p>
+            <p className="text-xs text-ink/50">20 min continuous, barely pumped — aerobic base.</p>
+          </div>
+          <ClimbTimer
+            storageKey="climb:train-timer-arc"
+            defaultConfig={{
+              rounds: 1,
+              phases: [
+                { id: "arc", label: "Climb", durationSec: 1200, tone: "pine" },
+              ],
+            }}
+          />
+        </Card>
+      </div>
     </div>
   );
 }
