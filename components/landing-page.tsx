@@ -30,14 +30,21 @@ function useScrollProgress() {
   return progress;
 }
 
-function LeadFallGraphic({ progress }: { progress: number }) {
-  const normalized = clamp((progress - 0.08) / 0.52);
+function LeadFallGraphic({
+  progress,
+  mode = "card",
+}: {
+  progress: number;
+  mode?: "card" | "backdrop";
+}) {
+  const normalized = clamp((progress - 0.015) / 0.28);
   const climberY = 106 + normalized * 198;
   const climberX = 214 + normalized * 36;
   const climberRotation = normalized * 36;
   const ropeCatch = normalized > 0.76 ? (normalized - 0.76) / 0.24 : 0;
   const belayerLean = normalized > 0.72 ? 1 + (normalized - 0.72) * 0.3 : 1;
   const chalkOpacity = clamp((normalized - 0.18) / 0.3);
+  const blurStrength = mode === "backdrop" ? 1.4 + normalized * 1.8 : 0;
 
   const ropePath = `M 276 380 C 274 328, ${260 + normalized * 24} ${286 + normalized * 18}, ${climberX + 2} ${climberY + 10}`;
   const wallDots = useMemo(
@@ -52,6 +59,60 @@ function LeadFallGraphic({ progress }: { progress: number }) {
     ],
     [],
   );
+
+  if (mode === "backdrop") {
+    return (
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute right-[-6rem] top-[-1rem] hidden h-[36rem] w-[44rem] overflow-hidden lg:block"
+        style={{ opacity: 0.48 }}
+      >
+        <svg
+          viewBox="0 0 400 440"
+          className="h-full w-full"
+          style={{ filter: `blur(${blurStrength}px)` }}
+        >
+          <defs>
+            <linearGradient id="wall-backdrop" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#E9D9C1" />
+              <stop offset="100%" stopColor="#D6C2A5" />
+            </linearGradient>
+          </defs>
+
+          <path d="M160 20 C208 58, 166 138, 246 176 C326 214, 246 298, 294 420 L400 440 L400 0 L160 0 Z" fill="url(#wall-backdrop)" />
+          {wallDots.map((hold) => (
+            <circle key={`${hold.x}-${hold.y}`} cx={hold.x} cy={hold.y} r={hold.r} fill={hold.fill} opacity="0.8" />
+          ))}
+          <path d="M276 380 C278 328, 270 250, 272 148" stroke="#0F241F" strokeWidth="5" strokeLinecap="round" opacity="0.25" />
+          <path d={ropePath} stroke="#D96C47" strokeWidth={4 + ropeCatch * 2} strokeLinecap="round" fill="none" opacity="0.85" />
+
+          <g transform={`translate(276 ${382 - ropeCatch * 10}) scale(${belayerLean} 1)`} opacity="0.8">
+            <circle cx="0" cy="-28" r="10" fill="#101418" />
+            <path d="M-2 -16 L8 22" stroke="#101418" strokeWidth="8" strokeLinecap="round" />
+            <path d="M2 -8 L-16 6" stroke="#101418" strokeWidth="7" strokeLinecap="round" />
+            <path d="M6 -4 L20 16" stroke="#101418" strokeWidth="7" strokeLinecap="round" />
+            <path d="M8 22 L-8 52" stroke="#101418" strokeWidth="8" strokeLinecap="round" />
+            <path d="M8 22 L24 54" stroke="#101418" strokeWidth="8" strokeLinecap="round" />
+          </g>
+
+          <g transform={`translate(${climberX} ${climberY}) rotate(${climberRotation})`} opacity="0.92">
+            <circle cx="0" cy="-16" r="10" fill="#101418" />
+            <path d="M0 -6 L0 24" stroke="#101418" strokeWidth="8" strokeLinecap="round" />
+            <path d="M0 0 L-16 -10" stroke="#101418" strokeWidth="7" strokeLinecap="round" />
+            <path d="M0 4 L16 14" stroke="#101418" strokeWidth="7" strokeLinecap="round" />
+            <path d="M0 24 L-14 50" stroke="#101418" strokeWidth="8" strokeLinecap="round" />
+            <path d="M0 24 L18 42" stroke="#101418" strokeWidth="8" strokeLinecap="round" />
+          </g>
+
+          <g opacity={chalkOpacity * 0.8}>
+            <circle cx={climberX - 26} cy={climberY + 6} r="4" fill="#fff" />
+            <circle cx={climberX - 42} cy={climberY - 4} r="3" fill="#fff" />
+            <circle cx={climberX - 12} cy={climberY - 18} r="2.5" fill="#fff" />
+          </g>
+        </svg>
+      </div>
+    );
+  }
 
   return (
     <div className="sticky top-20 overflow-hidden rounded-[32px] border border-ink/10 bg-[linear-gradient(180deg,#fef6e6_0%,#f3ebda_46%,#e8dfcf_100%)] shadow-[0_28px_90px_rgba(16,20,24,0.12)]">
@@ -139,9 +200,10 @@ export function LandingPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(217,108,71,0.18),transparent_24%),radial-gradient(circle_at_80%_18%,rgba(39,78,69,0.18),transparent_22%),linear-gradient(180deg,#f7efe2_0%,#f3ebdd_58%,#f7f2ea_100%)]" />
         <div className="pointer-events-none absolute -left-24 top-28 h-64 w-64 rounded-full bg-clay/10 blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-pine/10 blur-3xl" />
+        <LeadFallGraphic progress={progress} mode="backdrop" />
 
-        <div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-          <div className="max-w-2xl pt-4">
+        <div className="relative mx-auto max-w-7xl">
+          <div className="relative z-10 max-w-2xl pt-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-pine shadow-sm backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" />
               Training For Comp Climbers
@@ -174,6 +236,12 @@ export function LandingPage() {
               >
                 Sign In
               </Link>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center justify-center rounded-full border border-clay/20 bg-clay/10 px-6 py-3 text-sm font-semibold text-clay transition hover:border-clay/40"
+              >
+                View Pricing
+              </Link>
             </div>
 
             <div className="mt-10 grid gap-3 sm:grid-cols-3">
@@ -201,8 +269,6 @@ export function LandingPage() {
               </div>
             </div>
           </div>
-
-          <LeadFallGraphic progress={progress} />
         </div>
       </section>
 

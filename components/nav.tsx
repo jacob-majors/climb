@@ -38,6 +38,12 @@ export function Nav() {
           <UserButton />
         </Show>
         <Show when="signed-out">
+          <Link
+            href="/pricing"
+            className="flex items-center gap-2 rounded-full border border-clay/18 bg-clay/10 px-3 py-2 text-xs font-semibold text-clay shadow-[0_8px_24px_rgba(15,36,32,0.08)] backdrop-blur transition hover:border-clay/40"
+          >
+            Pricing
+          </Link>
           <SignInButton mode="redirect">
             <button className="flex items-center gap-2 rounded-full border border-ink/12 bg-chalk/95 px-3 py-2 text-xs font-semibold shadow-[0_8px_24px_rgba(15,36,32,0.12)] backdrop-blur transition hover:border-pine/40">
               Sign in
