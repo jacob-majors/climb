@@ -24,7 +24,7 @@ export function Nav() {
 
       <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
         <Show when="signed-in">
-          <UserButton />
+          <UserButton userProfileMode="navigation" userProfileUrl="/profile" />
         </Show>
         <Show when="signed-out">
           <Link

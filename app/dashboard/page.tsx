@@ -213,7 +213,7 @@ function formatClockLabel(value?: string | null) {
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
   const suffix = hours >= 12 ? "PM" : "AM";
   const twelveHour = hours % 12 || 12;
-  return `${twelveHour}:${String(minutes).padStart(2, "0")}${suffix}`;
+  return `${twelveHour}:${String(minutes).padStart(2, "0")} ${suffix}`;
 }
 
 function formatScheduledRange(start?: string | null, end?: string | null) {

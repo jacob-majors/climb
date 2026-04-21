@@ -25,20 +25,41 @@ function parseLocalInZone(
   hour: number, minute: number, second: number,
   timeZone: string,
 ): Date {
-  // Treat components as UTC, then correct for the timezone offset.
-  const utcApprox = Date.UTC(year, month, day, hour, minute, second);
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(new Date(utcApprox)).map((p) => [p.type, p.value]),
-  );
-  const displayHour = Number(parts.hour) % 24;
-  const displayMinute = Number(parts.minute);
-  const diffMs = ((hour - displayHour) * 60 + (minute - displayMinute)) * 60 * 1000;
-  return new Date(utcApprox + diffMs);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+
+  const targetUtc = Date.UTC(year, month, day, hour, minute, second);
+  let guess = targetUtc;
+
+  // Iterate a couple of times so DST / date-boundary transitions settle correctly.
+  for (let index = 0; index < 3; index += 1) {
+    const parts = Object.fromEntries(
+      formatter.formatToParts(new Date(guess)).map((part) => [part.type, part.value]),
+    );
+
+    const observedUtc = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    );
+
+    const delta = targetUtc - observedUtc;
+    if (delta === 0) break;
+    guess += delta;
+  }
+
+  return new Date(guess);
 }
 
 function parseIcsDate(value: string, tzid?: string | null): Date | null {
@@ -221,6 +242,36 @@ function toClockTime(date: Date, timeZone = "America/Los_Angeles") {
   return `${parts.hour}:${parts.minute} ${parts.dayPeriod}`;
 }
 
+function localMinutes(date: Date, timeZone = "America/Los_Angeles") {
+  const parts = zonedParts(date, timeZone);
+  const hourValue = Number(parts.hour);
+  const minuteValue = Number(parts.minute);
+  const period = (parts.dayPeriod ?? "").toLowerCase();
+
+  if (!Number.isFinite(hourValue) || !Number.isFinite(minuteValue)) return null;
+
+  let hours24 = hourValue % 12;
+  if (period === "pm") hours24 += 12;
+  return hours24 * 60 + minuteValue;
+}
+
+function shouldHideImportedTime(event: ImportedCalendarEvent) {
+  const startMinutes = localMinutes(event.start);
+  if (startMinutes === null) return false;
+
+  const earlyPlaceholder = startMinutes > 0 && startMinutes <= 4 * 60;
+
+  if (!event.end) {
+    return earlyPlaceholder;
+  }
+
+  const endMinutes = localMinutes(event.end);
+  const durationHours = (event.end.getTime() - event.start.getTime()) / (1000 * 60 * 60);
+  const allDayLike = durationHours >= 23;
+
+  return allDayLike || (earlyPlaceholder && endMinutes !== null && endMinutes <= 5 * 60);
+}
+
 export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
   const now = startOfDay(new Date());
   const windowEnd = addDays(now, 21);
@@ -272,7 +323,11 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
       title: event.title,
       type,
       load: inferLoad(event.title, type, durationHours),
-      time: event.end ? `${toClockTime(event.start)} - ${toClockTime(event.end)}` : toClockTime(event.start),
+      time: shouldHideImportedTime(event)
+        ? undefined
+        : event.end
+          ? `${toClockTime(event.start)} - ${toClockTime(event.end)}`
+          : toClockTime(event.start),
       date: toIsoDate(event.start),
       notes: [event.location, event.description?.replace(/^Calendar:\s*.+?(\n|$)/i, "").trim() || null].filter(Boolean).join(" • ") || undefined,
       source: "ics",
