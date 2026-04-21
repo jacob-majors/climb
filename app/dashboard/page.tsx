@@ -877,57 +877,64 @@ export default async function DashboardPage() {
 
         <Card className="overflow-hidden p-0">
           {nextComp ? (
-            <div className="rounded-[28px] bg-ink px-6 pt-8 pb-6 text-chalk">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-chalk/55">Countdown</p>
-              <p className="mt-2 text-2xl font-black text-chalk">{nextComp.name}</p>
-              <p className="mt-1 text-sm text-chalk/60">{competitionDateLabel(nextComp)}</p>
-              {nextComp.location ? (
-                <p className="mt-2 flex items-center gap-1.5 text-xs text-chalk/45">
-                  <MapPin className="h-3 w-3" />
-                  {nextComp.location}
-                </p>
-              ) : null}
-              <div className="mt-6 flex items-end gap-4">
-                <div>
-                  <p className="text-[4.5rem] font-black leading-none tabular-nums text-chalk">{daysUntilComp ?? "–"}</p>
-                  <p className="mt-1 text-sm font-medium text-chalk/60">{daysUntilComp !== null ? countdownLabel(daysUntilComp) : "No comp date"}</p>
+            <details className="group">
+              <summary className="list-none cursor-pointer">
+                <div className="flex items-center gap-4 px-5 py-4 hover:bg-ink/3 transition-colors select-none">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink/40">Next comp</p>
+                    <p className="mt-0.5 text-sm font-semibold text-ink truncate">{nextComp.name}</p>
+                    {nextComp.location ? (
+                      <p className="flex items-center gap-1 text-xs text-ink/45 mt-0.5">
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{nextComp.location}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-3xl font-black tabular-nums leading-none text-ink">{daysUntilComp ?? "–"}</span>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink/40">days</p>
+                      <p className="text-[10px] text-ink/35">{daysUntilComp === 0 ? "today!" : "to go"}</p>
+                    </div>
+                    <span className="ml-1 text-ink/25 text-xs inline-block transition-transform group-open:rotate-180">▼</span>
+                  </div>
                 </div>
-                <div className="mb-1 text-chalk/35 text-sm font-medium">days</div>
+              </summary>
+              <div className="border-t border-ink/8 bg-ink px-5 py-4 text-chalk">
+                <p className="text-xs text-chalk/50">{competitionDateLabel(nextComp)}</p>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl bg-white/8 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Recovery</p>
+                    <p className={`mt-1.5 text-base font-bold ${recovery.band === "green" ? "text-emerald-400" : recovery.band === "yellow" ? "text-amber-400" : "text-red-400"}`}>
+                      {recovery.band === "green" ? "Green" : recovery.band === "yellow" ? "Yellow" : "Red"}
+                    </p>
+                    <p className="text-xs text-chalk/40">{recovery.score}/100</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/8 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Peak</p>
+                    <p className="mt-1.5 text-base font-bold text-chalk">{format(peakForecast.predictedPeakDate, "MMM d")}</p>
+                    <p className="text-xs text-chalk/40">{peakForecast.confidence}% conf.</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/8 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Form</p>
+                    <p className="mt-1.5 text-base font-bold text-chalk">{peakForecast.peakScore}/100</p>
+                    <p className="text-xs text-chalk/40">peak form</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-chalk/50">{peakForecast.rationale}</p>
               </div>
-
-              <div className="mt-5 grid grid-cols-3 gap-2">
-                <div className="rounded-2xl bg-white/8 px-3 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Recovery</p>
-                  <p className={`mt-1.5 text-base font-bold ${recovery.band === "green" ? "text-emerald-400" : recovery.band === "yellow" ? "text-amber-400" : "text-red-400"}`}>
-                    {recovery.band === "green" ? "Green" : recovery.band === "yellow" ? "Yellow" : "Red"}
-                  </p>
-                  <p className="text-xs text-chalk/40">{recovery.score}/100</p>
-                </div>
-                <div className="rounded-2xl bg-white/8 px-3 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Peak</p>
-                  <p className="mt-1.5 text-base font-bold text-chalk">{format(peakForecast.predictedPeakDate, "MMM d")}</p>
-                  <p className="text-xs text-chalk/40">{peakForecast.confidence}% conf.</p>
-                </div>
-                <div className="rounded-2xl bg-white/8 px-3 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Form</p>
-                  <p className="mt-1.5 text-base font-bold text-chalk">{peakForecast.peakScore}/100</p>
-                  <p className="text-xs text-chalk/40">peak form</p>
-                </div>
-              </div>
-
-              <p className="mt-4 text-xs leading-5 text-chalk/50">{peakForecast.rationale}</p>
-            </div>
+            </details>
           ) : (
-            <div className="px-6 py-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-pine/60">No competition saved</p>
-              <p className="mt-2 text-2xl font-black text-ink">Add your next comp</p>
-              <p className="mt-1 text-sm text-ink/55">Set a competition date to unlock the countdown, taper forecast, and peak alignment.</p>
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink/40">No competition saved</p>
+              <p className="mt-1 text-sm font-semibold text-ink">Add your next comp</p>
+              <p className="text-xs text-ink/50 mt-0.5">Set a date to unlock the countdown and taper forecast.</p>
             </div>
           )}
 
-          <div className="flex items-center gap-3 px-6 py-4">
-            <span className={`h-2.5 w-2.5 rounded-full ${recovery.band === "green" ? "bg-emerald-500" : recovery.band === "yellow" ? "bg-amber-400" : "bg-red-500"}`} />
-            <div>
+          <div className="border-t border-ink/8 flex items-center gap-3 px-5 py-3">
+            <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${recovery.band === "green" ? "bg-emerald-500" : recovery.band === "yellow" ? "bg-amber-400" : "bg-red-500"}`} />
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-ink">{recoveryLabel(recovery.band)}</p>
               <p className="text-xs text-ink/50">{readinessCue(recovery.band)}</p>
             </div>

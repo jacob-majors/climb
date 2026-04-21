@@ -91,31 +91,42 @@ function emptyCompetition(): CompetitionDraft {
 type EventCardProps = {
   event: CalendarEntry;
   isExpanded: boolean;
+  isSelected: boolean;
   onToggle: () => void;
+  onSelect: () => void;
   onUpdate: (field: keyof CalendarEntry, value: string) => void;
   onRemove: () => void;
 };
 
-function EventCard({ event, isExpanded, onToggle, onUpdate, onRemove }: EventCardProps) {
+function EventCard({ event, isExpanded, isSelected, onToggle, onSelect, onUpdate, onRemove }: EventCardProps) {
   const cfg = TYPE_CONFIG[event.type] ?? TYPE_CONFIG.life;
   const isSynced = Boolean(event.source && event.source !== "manual");
 
   return (
-    <div className="rounded-2xl border border-ink/10 overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${isExpanded ? "bg-ink/5" : "hover:bg-ink/3"}`}
-      >
-        <span className={`h-2 w-2 rounded-full flex-shrink-0 ${cfg.dotClass}`} />
-        <span className="text-sm font-medium text-ink flex-1 truncate min-w-0">
-          {event.title || <span className="text-ink/35">Untitled event</span>}
-        </span>
-        {event.time ? <span className="text-xs text-ink/45 flex-shrink-0 hidden sm:block">{event.time}</span> : null}
-        <span className={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${cfg.chipClass}`}>{cfg.label}</span>
-        {isSynced && <span className="text-xs text-ink/35 flex-shrink-0">synced</span>}
-        <span className="text-ink/25 text-xs flex-shrink-0 ml-1">{isExpanded ? "▲" : "▼"}</span>
-      </button>
+    <div className={`rounded-2xl border overflow-hidden transition-colors ${isSelected ? "border-pine/40 bg-pine/5" : "border-ink/10"}`}>
+      <div className={`flex items-center gap-2 px-3 py-2.5 transition-colors ${isExpanded ? "bg-ink/5" : ""}`}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onSelect}
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 rounded border-ink/20 accent-pine flex-shrink-0 cursor-pointer"
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+        >
+          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${cfg.dotClass}`} />
+          <span className="text-sm font-medium text-ink flex-1 truncate min-w-0">
+            {event.title || <span className="text-ink/35">Untitled event</span>}
+          </span>
+          {event.time ? <span className="text-xs text-ink/45 flex-shrink-0 hidden sm:block">{event.time}</span> : null}
+          <span className={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${cfg.chipClass}`}>{cfg.label}</span>
+          {isSynced && <span className="text-xs text-ink/35 flex-shrink-0">synced</span>}
+          <span className="text-ink/25 text-xs flex-shrink-0 ml-1">{isExpanded ? "▲" : "▼"}</span>
+        </button>
+      </div>
 
       {isExpanded && (
         <div className="border-t border-ink/8 bg-white px-3 pb-3 pt-3 space-y-3">
@@ -197,17 +208,40 @@ function getNowInTimeZone(timeZone: string) {
     month: "numeric",
     day: "numeric",
     weekday: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
   }).formatToParts(new Date());
 
   const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   const year = Number(byType.year);
   const month = Number(byType.month);
   const day = Number(byType.day);
+  const hour = Number(byType.hour) || 0;
+  const minute = Number(byType.minute) || 0;
 
   return {
     today: new Date(year, month - 1, day),
     weekday: byType.weekday,
+    nowMinutes: hour * 60 + minute,
   };
+}
+
+function parseEventEndMinutes(time?: string | null): number | null {
+  if (!time) return null;
+  const normalized = time.trim().toLowerCase().replace(/\s+/g, "");
+  const parts = normalized.split(/[-–]/).filter(Boolean);
+  const endToken = parts.length >= 2 ? parts[parts.length - 1] : parts[0];
+  if (!endToken) return null;
+  const match = /^(\d{1,2})(?::(\d{2}))?(am|pm)?$/.exec(endToken);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] ?? "0");
+  const meridiem = match[3];
+  if (meridiem === "pm" && hours < 12) hours += 12;
+  if (meridiem === "am" && hours === 12) hours = 0;
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
 }
 
 function getWeekDates(timeZone = "America/Los_Angeles") {
@@ -250,7 +284,8 @@ export function ScheduleEditor({
     initialCompetitions.slice(0, 1),
   );
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const todayDay = getNowInTimeZone("America/Los_Angeles").weekday;
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+  const { weekday: todayDay, nowMinutes } = getNowInTimeZone("America/Los_Angeles");
   const weekDates = getWeekDates("America/Los_Angeles");
 
   const dayEvents = dayNames.map((day) => ({
@@ -329,6 +364,11 @@ export function ScheduleEditor({
                 const isToday = name === todayDay;
                 const dayEvts = events
                   .filter((e) => eventBelongsToDay(e, weekDate))
+                  .filter((e) => {
+                    if (weekDate.name !== todayDay) return true;
+                    const endMin = parseEventEndMinutes(e.time);
+                    return endMin === null || nowMinutes < endMin;
+                  })
                   .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
 
                 return (
@@ -428,22 +468,84 @@ export function ScheduleEditor({
         </button>
       </div>
 
+      {/* Bulk-select action bar */}
+      {selectedIndices.length > 0 && (
+        <div className="sticky top-2 z-10 rounded-[20px] border border-pine/25 bg-white/95 p-3 shadow-lg backdrop-blur space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-pine">{selectedIndices.length} selected</p>
+            <button type="button" onClick={() => setSelectedIndices([])}
+              className="text-xs font-semibold text-ink/45 hover:text-ink transition-colors">
+              Clear
+            </button>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink/40 mb-1.5">Set type</p>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_TYPES.map((type) => {
+                const tcfg = TYPE_CONFIG[type];
+                return (
+                  <button key={type} type="button"
+                    onClick={() => setEvents((cur) => cur.map((e, i) => selectedIndices.includes(i) ? { ...e, type } : e))}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${tcfg.chipClass}`}>
+                    {tcfg.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink/40 mb-1.5">Set load</p>
+            <div className="flex gap-1.5">
+              {ALL_LOADS.map((load) => {
+                const lcfg = LOAD_CONFIG[load];
+                return (
+                  <button key={load} type="button"
+                    onClick={() => setEvents((cur) => cur.map((e, i) => selectedIndices.includes(i) ? { ...e, load } : e))}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${lcfg.activeClass}`}>
+                    {lcfg.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Day grid */}
       <div className="space-y-3">
         <div className="grid gap-3 xl:grid-cols-2">
           {dayEvents.map(({ day, events: dayEvts }) => {
             const icsCount = dayEvts.filter((e) => e.source === "ics").length;
+            const dayIndices = dayEvts.map((e) => events.indexOf(e));
+            const allSelected = dayIndices.length > 0 && dayIndices.every((i) => selectedIndices.includes(i));
             return (
               <div key={day} className="rounded-[20px] border border-ink/10 bg-white/70 p-3">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{day}</p>
+                  <div className="flex items-center gap-2 min-w-0">
                     {dayEvts.length > 0 && (
-                      <p className="text-xs text-ink/45">
-                        {dayEvts.length} event{dayEvts.length !== 1 ? "s" : ""}
-                        {icsCount > 0 ? ` · ${icsCount} synced` : ""}
-                      </p>
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={() => {
+                          if (allSelected) {
+                            setSelectedIndices((cur) => cur.filter((i) => !dayIndices.includes(i)));
+                          } else {
+                            setSelectedIndices((cur) => [...new Set([...cur, ...dayIndices])]);
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-ink/20 accent-pine flex-shrink-0 cursor-pointer"
+                        title={`Select all ${day} events`}
+                      />
                     )}
+                    <div>
+                      <p className="text-sm font-semibold text-ink">{day}</p>
+                      {dayEvts.length > 0 && (
+                        <p className="text-xs text-ink/45">
+                          {dayEvts.length} event{dayEvts.length !== 1 ? "s" : ""}
+                          {icsCount > 0 ? ` · ${icsCount} synced` : ""}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <button type="button" onClick={() => addEvent(day)}
                     className="flex h-7 w-7 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-base font-light leading-none"
@@ -461,7 +563,11 @@ export function ScheduleEditor({
                           key={idx}
                           event={event}
                           isExpanded={expandedIndex === idx}
+                          isSelected={selectedIndices.includes(idx)}
                           onToggle={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
+                          onSelect={() => setSelectedIndices((cur) =>
+                            cur.includes(idx) ? cur.filter((i) => i !== idx) : [...cur, idx]
+                          )}
                           onUpdate={(field, value) => updateEvent(idx, field, value)}
                           onRemove={() => removeEvent(idx)}
                         />
