@@ -436,7 +436,7 @@ export function ScheduleEditor({
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [events, setEvents] = useState<CalendarEntry[]>(initialEvents);
   const [competitions, setCompetitions] = useState<CompetitionDraft[]>(
-    initialCompetitions.slice(0, 1),
+    initialCompetitions.length ? initialCompetitions : [emptyCompetition()],
   );
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
@@ -444,19 +444,20 @@ export function ScheduleEditor({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragTargetDay, setDragTargetDay] = useState<string | null>(null);
   const [expandedCompetitionIndex, setExpandedCompetitionIndex] = useState<number | null>(null);
+  const isEditing = mode === "edit";
   const { weekday: todayDay, nowMinutes } = getNowInTimeZone("America/Los_Angeles");
   const weekDates = getWeekDates("America/Los_Angeles", weekOffset);
 
-  const dayEvents = dayNames.map((day) => ({
-    day,
+  const dayEvents = weekDates.map((weekDate) => ({
+    ...weekDate,
     events: events
-      .filter((e) => e.day === day)
+      .filter((e) => eventBelongsToDay(e, weekDate))
       .sort((a, b) => (parseEventStartMinutes(a.time) ?? 24 * 60) - (parseEventStartMinutes(b.time) ?? 24 * 60)),
   }));
 
   const thisWeekEvents = weekDates.flatMap((wd) => events.filter((e) => eventBelongsToDay(e, wd)));
   const savedEvents = thisWeekEvents.filter((e) => e.title.trim());
-  const savedCompetitions = competitions.slice(0, 1).filter((c) => c.name.trim() && c.date);
+  const savedCompetitions = competitions.filter((c) => c.name.trim() && c.date);
 
   const timeAvailableByDay = dayNames.reduce<Record<string, number>>((acc, day) => {
     acc[day] = initialAvailability[day] ?? 60;
@@ -504,161 +505,6 @@ export function ScheduleEditor({
   function updateCompetition(index: number, field: keyof CompetitionDraft, value: string) {
     setCompetitions((cur) => cur.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
   }
-
-  // ── VIEW MODE ────────────────────────────────────────────────────────────────
-
-  if (mode === "view") {
-    return (
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setWeekOffset((o) => o - 1)}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-sm"
-              title="Previous week"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              onClick={() => setWeekOffset(0)}
-              className={`px-3 h-8 rounded-full border text-xs font-semibold transition-colors ${weekOffset === 0 ? "border-pine/25 bg-pine/8 text-pine" : "border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine"}`}
-            >
-              {weekLabel(weekOffset)}
-            </button>
-            <button
-              type="button"
-              onClick={() => setWeekOffset((o) => o + 1)}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-sm"
-              title="Next week"
-            >
-              ›
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMode("edit")}
-            className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink/70 transition-colors hover:border-pine/40 hover:text-pine shadow-sm"
-            title="Edit schedule"
-          >
-            <Pencil className="h-4 w-4" />
-            Edit week
-          </button>
-        </div>
-
-        {savedEvents.length === 0 && competitions.length === 0 ? (
-          <div className="rounded-[20px] border border-dashed border-ink/10 py-10 text-center">
-            <p className="text-sm text-ink/40">No schedule saved yet.</p>
-            <button type="button" onClick={() => setMode("edit")}
-              className="mt-2 text-sm font-semibold text-pine hover:text-pine/70 transition-colors">
-              Add your week →
-            </button>
-          </div>
-        ) : (
-          <div className="rounded-[24px] border border-ink/10 bg-white/80 p-3 sm:p-4">
-            <div className="grid gap-3 lg:grid-cols-7">
-              {weekDates.map((weekDate) => {
-                const { name, dateNum } = weekDate;
-                const isToday = name === todayDay;
-                const dayEvts = events
-                  .filter((e) => eventBelongsToDay(e, weekDate))
-                  .filter((e) => {
-                    if (weekOffset !== 0 || weekDate.name !== todayDay) return true;
-                    const endMin = parseEventEndMinutes(e.time);
-                    return endMin === null || nowMinutes < endMin;
-                  })
-                  .sort((a, b) => (parseEventStartMinutes(a.time) ?? 24 * 60) - (parseEventStartMinutes(b.time) ?? 24 * 60));
-
-                return (
-                  <div
-                    key={name}
-                    className={`rounded-[20px] border border-ink/8 bg-mist/35 p-3 ${isToday ? "ring-2 ring-pine/25" : ""}`}
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-ink">{name}</p>
-                        <p className="text-xs text-ink/50">{weekDate.monthLabel}</p>
-                      </div>
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                        isToday ? "bg-pine text-chalk" : "bg-white text-ink/70"
-                      }`}>
-                        {dateNum}
-                      </span>
-                    </div>
-
-                    {dayEvts.length === 0 ? (
-                      <p className="rounded-xl border border-dashed border-ink/10 px-3 py-4 text-center text-xs text-ink/35">Nothing scheduled</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {dayEvts.map((ev, i) => {
-                          const cfg = TYPE_CONFIG[ev.type] ?? TYPE_CONFIG.life;
-                          return (
-                            <div key={i} className={`rounded-xl px-3 py-2.5 ${cfg.viewClass}`}>
-                              <div className="flex items-start gap-2">
-                                <span className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${cfg.dotClass}`} />
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-ink">{ev.title || "Untitled"}</p>
-                                  {ev.time ? <p className="mt-1 text-xs text-ink/60">{normalizeTimeDisplay(ev.time)}</p> : null}
-                                  {ev.partners ? (
-                                    <div className="mt-1.5 flex flex-wrap gap-1">
-                                      {ev.partners.split(",").map((p) => p.trim()).filter(Boolean).map((p) => (
-                                        <span key={p} className="rounded-full border border-pine/20 bg-pine/8 px-2 py-0.5 text-[10px] font-semibold text-pine">{p}</span>
-                                      ))}
-                                    </div>
-                                  ) : null}
-                                  {ev.notes ? <p className="mt-1 text-xs text-ink/50">{ev.notes}</p> : null}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Competitions */}
-        {competitions.length > 0 && (
-          <div className="rounded-[20px] border border-ink/10 bg-white/70 p-4 space-y-2">
-            <p className="text-sm font-semibold text-ink">Competitions</p>
-            <div className="space-y-1.5">
-              {competitions.map((comp, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => {
-                    setMode("edit");
-                    setExpandedCompetitionIndex(i);
-                  }}
-                  className="w-full rounded-xl bg-clay/8 px-3 py-2.5 text-left transition hover:bg-clay/12"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-ink flex-1">{comp.name}</span>
-                    {comp.date && <span className="text-xs text-ink/50">{new Date(comp.date + "T00:00:00").toLocaleDateString()}</span>}
-                    {comp.location && <span className="text-xs text-ink/40 hidden sm:block">{comp.location}</span>}
-                  </div>
-                  {competitionSummary(comp.notes) ? (
-                    <p className="mt-1.5 text-xs leading-5 text-ink/55">{competitionSummary(comp.notes)}</p>
-                  ) : (
-                    <p className="mt-1.5 text-xs leading-5 text-ink/40">Click to add comp details like start time, ISO end, round notes, or travel plan.</p>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── EDIT MODE ────────────────────────────────────────────────────────────────
-
   return (
     <form action={saveScheduleAction} className="space-y-4">
       {/* Passthrough hidden fields */}
@@ -683,18 +529,77 @@ export function ScheduleEditor({
 
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-base font-semibold text-ink">Edit your week</p>
-          <p className="text-xs text-ink/50">Drag events between days, or tap any event card to edit its details.</p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setWeekOffset((o) => o - 1)}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-sm"
+            title="Previous week"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() => setWeekOffset(0)}
+            className={`px-3 h-8 rounded-full border text-xs font-semibold transition-colors ${weekOffset === 0 ? "border-pine/25 bg-pine/8 text-pine" : "border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine"}`}
+          >
+            {weekLabel(weekOffset)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setWeekOffset((o) => o + 1)}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-sm"
+            title="Next week"
+          >
+            ›
+          </button>
         </div>
-        <button type="button" onClick={() => setMode("view")}
-          className="text-xs font-semibold text-ink/50 hover:text-ink transition-colors px-3 py-1.5 rounded-full border border-ink/10 hover:border-ink/25">
-          Cancel
-        </button>
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <>
+              <button type="button" onClick={() => {
+                setMode("view");
+                setExpandedIndex(null);
+                setExpandedCompetitionIndex(null);
+                setSelectedIndices([]);
+              }}
+                className="rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold text-ink/60 hover:border-ink/25 hover:text-ink transition-colors">
+                Done
+              </button>
+              <SubmitButton label="Save schedule" pendingLabel="Saving…" />
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMode("edit")}
+              className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink/70 transition-colors hover:border-pine/40 hover:text-pine shadow-sm"
+              title="Edit schedule"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-ink/10 bg-white/80 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-base font-semibold text-ink">Weekly schedule</p>
+            <p className="text-xs text-ink/55">
+              {isEditing
+                ? "Drag events into the right day, then tap a card to edit time, load, partners, or notes."
+                : "Tap Edit to move events around or open a card to update the details for that day."}
+            </p>
+          </div>
+          <p className="text-xs text-ink/45 hidden sm:block">
+            {isEditing ? "Only this week's dated events show in each column." : "Dates are pinned to the top so each day stays clear."}
+          </p>
+        </div>
       </div>
 
       {/* Bulk-select action bar */}
-      {selectedIndices.length > 0 && (
+      {isEditing && selectedIndices.length > 0 && (
         <div className="sticky top-2 z-10 rounded-[20px] border border-pine/25 bg-white/95 p-3 shadow-lg backdrop-blur space-y-2.5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-pine">{selectedIndices.length} selected</p>
@@ -736,138 +641,34 @@ export function ScheduleEditor({
         </div>
       )}
 
-      {/* Day grid */}
-      <div className="space-y-3">
-        <div className="grid gap-3 xl:grid-cols-2">
-          {dayEvents.map(({ day, events: dayEvts }) => {
-            const icsCount = dayEvts.filter((e) => e.source === "ics").length;
-            const dayIndices = dayEvts.map((e) => events.indexOf(e));
-            const allSelected = dayIndices.length > 0 && dayIndices.every((i) => selectedIndices.includes(i));
-            return (
-              <div
-                key={day}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDragTargetDay(day);
-                }}
-                onDragLeave={() => {
-                  if (dragTargetDay === day) setDragTargetDay(null);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (draggedIndex !== null) {
-                    moveEventToDay(draggedIndex, day);
-                    setExpandedIndex(draggedIndex);
-                  }
-                  setDragTargetDay(null);
-                  setDraggedIndex(null);
-                }}
-                className={`rounded-[20px] border bg-white/70 p-3 transition-colors ${
-                  dragTargetDay === day ? "border-pine/40 bg-pine/5" : "border-ink/10"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {dayEvts.length > 0 && (
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        onChange={() => {
-                          if (allSelected) {
-                            setSelectedIndices((cur) => cur.filter((i) => !dayIndices.includes(i)));
-                          } else {
-                            setSelectedIndices((cur) => [...new Set([...cur, ...dayIndices])]);
-                          }
-                        }}
-                        className="h-4 w-4 rounded border-ink/20 accent-pine flex-shrink-0 cursor-pointer"
-                        title={`Select all ${day} events`}
-                      />
-                    )}
-                    <div>
-                      <p className="text-sm font-semibold text-ink">{day}</p>
-                      {dayEvts.length > 0 && (
-                        <p className="text-xs text-ink/45">
-                          {dayEvts.length} event{dayEvts.length !== 1 ? "s" : ""}
-                          {icsCount > 0 ? ` · ${icsCount} synced` : ""}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => addEvent(day)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-base font-light leading-none"
-                    title={`Add event on ${day}`}>
-                    +
-                  </button>
-                </div>
-
-                <div className="space-y-1.5">
-                  {dayEvts.length ? (
-                    dayEvts.map((event) => {
-                      const idx = events.indexOf(event);
-                      return (
-                        <EventCard
-                          index={idx}
-                          key={idx}
-                          event={event}
-                          isExpanded={expandedIndex === idx}
-                          isSelected={selectedIndices.includes(idx)}
-                          isDragging={draggedIndex === idx}
-                          onToggle={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
-                          onSelect={() => setSelectedIndices((cur) =>
-                            cur.includes(idx) ? cur.filter((i) => i !== idx) : [...cur, idx]
-                          )}
-                          onUpdate={(field, value) => updateEvent(idx, field, value)}
-                          onRemove={() => removeEvent(idx)}
-                          onDragStart={setDraggedIndex}
-                          onDragEnd={() => {
-                            setDraggedIndex(null);
-                            setDragTargetDay(null);
-                          }}
-                        />
-                      );
-                    })
-                  ) : (
-                    <button type="button" onClick={() => addEvent(day)}
-                      className="w-full rounded-xl border border-dashed border-ink/10 py-3 text-xs text-ink/35 hover:border-ink/25 hover:text-ink/50 transition-colors">
-                      + Add event
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Competitions */}
       <div className="space-y-3 rounded-[20px] border border-ink/10 bg-white/70 p-4">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-ink">Competitions</p>
-          <button type="button" onClick={() => setCompetitions((c) => (c.length ? c : [emptyCompetition()]))}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-base font-light leading-none"
-            title="Set competition"
-            disabled={competitions.length > 0}>
-            +
-          </button>
+          <div>
+            <p className="text-sm font-semibold text-ink">Competitions</p>
+            <p className="text-xs text-ink/50">Keep comps at the top with their own cards for start time, ISO end, travel, and round notes.</p>
+          </div>
+          {isEditing ? (
+            <button type="button" onClick={() => setCompetitions((cur) => [...cur, emptyCompetition()])}
+              className="rounded-full border border-ink/10 px-3 py-1.5 text-xs font-semibold text-ink/60 hover:border-pine/40 hover:text-pine transition-colors">
+              Add comp
+            </button>
+          ) : null}
         </div>
 
-        {competitions.length === 0 && (
-          <button type="button" onClick={() => setCompetitions([emptyCompetition()])}
-            className="w-full rounded-xl border border-dashed border-ink/10 py-3 text-xs text-ink/35 hover:border-ink/25 hover:text-ink/50 transition-colors">
-            + Add competition
-          </button>
-        )}
-
-        <div className="space-y-3">
-          {competitions.slice(0, 1).map((comp, index) => (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {competitions.map((comp, index) => (
             <div key={`${comp.id ?? "new"}-${index}`} className="rounded-2xl border border-ink/10 bg-mist/30 overflow-hidden">
               <button
                 type="button"
-                onClick={() => setExpandedCompetitionIndex(expandedCompetitionIndex === index ? null : index)}
+                onClick={() => {
+                  if (!isEditing) setMode("edit");
+                  setExpandedCompetitionIndex(expandedCompetitionIndex === index ? null : index);
+                }}
                 className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-ink">{comp.name || "Competition"}</p>
+                  <p className="text-sm font-semibold text-ink">{comp.name || `Competition ${index + 1}`}</p>
                   <p className="mt-1 text-xs text-ink/50">
                     {[comp.date ? new Date(comp.date + "T00:00:00").toLocaleDateString() : null, comp.location || null, comp.discipline || null]
                       .filter(Boolean)
@@ -875,12 +676,14 @@ export function ScheduleEditor({
                   </p>
                   {competitionSummary(comp.notes) ? (
                     <p className="mt-1.5 text-xs leading-5 text-ink/55">{competitionSummary(comp.notes)}</p>
-                  ) : null}
+                  ) : (
+                    <p className="mt-1.5 text-xs leading-5 text-ink/40">Tap to add start time, ISO finish, check-in, round order, travel plan, and reminders.</p>
+                  )}
                 </div>
                 <span className="text-xs text-ink/35">{expandedCompetitionIndex === index ? "▲" : "▼"}</span>
               </button>
 
-              {expandedCompetitionIndex === index && (
+              {isEditing && expandedCompetitionIndex === index && (
                 <div className="space-y-2 border-t border-ink/8 bg-white px-3 pb-3 pt-3">
                   <div className="grid gap-2 sm:grid-cols-2">
                     <input value={comp.name} onChange={(e) => updateCompetition(index, "name", e.target.value)}
@@ -903,7 +706,7 @@ export function ScheduleEditor({
                     rows={4}
                     className="w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none resize-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
                   <div className="flex justify-end">
-                    <button type="button" onClick={() => setCompetitions((c) => c.filter((_, i) => i !== index))}
+                    <button type="button" onClick={() => setCompetitions((cur) => cur.length === 1 ? [emptyCompetition()] : cur.filter((_, i) => i !== index))}
                       className="text-xs font-semibold text-clay hover:text-clay/70 transition-colors">
                       Remove
                     </button>
@@ -915,8 +718,166 @@ export function ScheduleEditor({
         </div>
       </div>
 
+      {/* Day grid */}
+      <div className="rounded-[24px] border border-ink/10 bg-white/80 p-3 sm:p-4">
+        <div className="grid gap-3 lg:grid-cols-7">
+          {dayEvents.map((weekDate) => {
+            const { name, dateNum, monthLabel } = weekDate;
+            const dayEvts = weekDate.events.filter((e) => {
+              if (isEditing || weekOffset !== 0 || weekDate.name !== todayDay) return true;
+              const endMin = parseEventEndMinutes(e.time);
+              return endMin === null || nowMinutes < endMin;
+            });
+            const icsCount = dayEvts.filter((e) => e.source === "ics" || e.source === "google").length;
+            const dayIndices = dayEvts.map((e) => events.indexOf(e));
+            const allSelected = dayIndices.length > 0 && dayIndices.every((i) => selectedIndices.includes(i));
+            const isToday = name === todayDay && weekOffset === 0;
+            return (
+              <div
+                key={name}
+                onDragOver={(event) => {
+                  if (!isEditing) return;
+                  event.preventDefault();
+                  setDragTargetDay(name);
+                }}
+                onDragLeave={() => {
+                  if (dragTargetDay === name) setDragTargetDay(null);
+                }}
+                onDrop={(event) => {
+                  if (!isEditing) return;
+                  event.preventDefault();
+                  if (draggedIndex !== null) {
+                    moveEventToDay(draggedIndex, name);
+                    setExpandedIndex(draggedIndex);
+                  }
+                  setDragTargetDay(null);
+                  setDraggedIndex(null);
+                }}
+                className={`rounded-[20px] border bg-white/70 p-3 transition-colors ${
+                  dragTargetDay === name ? "border-pine/40 bg-pine/5" : "border-ink/10"
+                } ${isToday ? "ring-2 ring-pine/20" : ""}`}
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isEditing && dayEvts.length > 0 && (
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={() => {
+                          if (allSelected) {
+                            setSelectedIndices((cur) => cur.filter((i) => !dayIndices.includes(i)));
+                          } else {
+                            setSelectedIndices((cur) => [...new Set([...cur, ...dayIndices])]);
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-ink/20 accent-pine flex-shrink-0 cursor-pointer"
+                        title={`Select all ${name} events`}
+                      />
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold text-ink">{name}</p>
+                      <p className="text-xs text-ink/50">{monthLabel}</p>
+                      {dayEvts.length > 0 && (
+                        <p className="text-[11px] text-ink/45">
+                          {dayEvts.length} event{dayEvts.length !== 1 ? "s" : ""}
+                          {icsCount > 0 ? ` · ${icsCount} synced` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                      isToday ? "bg-pine text-chalk" : "bg-mist/60 text-ink/70"
+                    }`}>
+                      {dateNum}
+                    </span>
+                    {isEditing ? (
+                      <button type="button" onClick={() => addEvent(name)}
+                        className="flex h-7 w-7 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-base font-light leading-none"
+                        title={`Add event on ${name}`}>
+                        +
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  {dayEvts.length ? (
+                    dayEvts.map((event) => {
+                      const idx = events.indexOf(event);
+                      if (isEditing) {
+                        return (
+                          <EventCard
+                            index={idx}
+                            key={idx}
+                            event={event}
+                            isExpanded={expandedIndex === idx}
+                            isSelected={selectedIndices.includes(idx)}
+                            isDragging={draggedIndex === idx}
+                            onToggle={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
+                            onSelect={() => setSelectedIndices((cur) =>
+                              cur.includes(idx) ? cur.filter((i) => i !== idx) : [...cur, idx]
+                            )}
+                            onUpdate={(field, value) => updateEvent(idx, field, value)}
+                            onRemove={() => removeEvent(idx)}
+                            onDragStart={setDraggedIndex}
+                            onDragEnd={() => {
+                              setDraggedIndex(null);
+                              setDragTargetDay(null);
+                            }}
+                          />
+                        );
+                      }
+
+                      const cfg = TYPE_CONFIG[event.type] ?? TYPE_CONFIG.life;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setMode("edit");
+                            setExpandedIndex(idx);
+                          }}
+                          className={`w-full rounded-xl px-3 py-2.5 text-left transition hover:opacity-90 ${cfg.viewClass}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${cfg.dotClass}`} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-ink">{event.title || "Untitled"}</p>
+                              {event.time ? <p className="mt-1 text-xs text-ink/60">{normalizeTimeDisplay(event.time)}</p> : null}
+                              {event.partners ? (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {event.partners.split(",").map((p) => p.trim()).filter(Boolean).map((p) => (
+                                    <span key={p} className="rounded-full border border-pine/20 bg-pine/8 px-2 py-0.5 text-[10px] font-semibold text-pine">{p}</span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {event.notes ? <p className="mt-1 text-xs text-ink/50">{event.notes}</p> : null}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <button type="button" onClick={() => {
+                      if (isEditing) addEvent(name);
+                    }}
+                      className="w-full rounded-xl border border-dashed border-ink/10 py-4 text-center text-xs text-ink/35 transition-colors hover:border-ink/25 hover:text-ink/50">
+                      {isEditing ? `+ Add event on ${name}` : "Nothing scheduled"}
+                    </button>
+                  )}
+                </div>
+                {isEditing && draggedIndex !== null && dragTargetDay === name ? (
+                  <p className="mt-2 text-[11px] font-medium text-pine">Drop here to move this event to {name}.</p>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Recovery snapshot */}
-      <details className="group rounded-[24px] border border-ink/10 bg-white/80">
+      <details className="group rounded-[24px] border border-ink/10 bg-white/80" open={isEditing}>
         <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink list-none">
           Recovery snapshot
           <span className="text-ink/40 text-xs group-open:rotate-180 transition-transform">▼</span>
@@ -965,13 +926,20 @@ export function ScheduleEditor({
         </div>
       </details>
 
-      <div className="flex gap-3">
-        <button type="button" onClick={() => setMode("view")}
-          className="rounded-full border border-ink/10 px-5 py-2.5 text-sm font-semibold text-ink/60 hover:border-ink/25 hover:text-ink transition-colors">
-          Cancel
-        </button>
-        <SubmitButton label="Save schedule" pendingLabel="Saving…" />
-      </div>
+      {isEditing ? (
+        <div className="flex gap-3">
+          <button type="button" onClick={() => {
+            setMode("view");
+            setExpandedIndex(null);
+            setExpandedCompetitionIndex(null);
+            setSelectedIndices([]);
+          }}
+            className="rounded-full border border-ink/10 px-5 py-2.5 text-sm font-semibold text-ink/60 hover:border-ink/25 hover:text-ink transition-colors">
+            Done
+          </button>
+          <SubmitButton label="Save schedule" pendingLabel="Saving…" />
+        </div>
+      ) : null}
     </form>
   );
 }

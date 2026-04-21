@@ -434,9 +434,9 @@ export function LandingPage() {
 
             <div className="mt-10 grid gap-3 sm:grid-cols-3">
               {[
-                ["Source of truth", "Calendar, comps, school, work, and route data stay connected."],
-                ["Session flow", "Plan it, run it, warm up, then jump straight into route analysis."],
-                ["Mobile first", "Fast enough to use between burns, not only at your desk."],
+                ["One place", "Calendar, comps, school, work, and route data stay in the same plan."],
+                ["Run the session", "Open the workout, warm up, train, and log the climb without bouncing around."],
+                ["Built for the gym", "Quick enough to check between burns, not just later at your desk."],
               ].map(([title, body]) => (
                 <div key={title} className="rounded-[28px] border border-white/45 bg-white/60 p-4 shadow-sm backdrop-blur">
                   <p className="text-sm font-semibold text-ink">{title}</p>
@@ -445,24 +445,23 @@ export function LandingPage() {
               ))}
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <div className="animate-float-slow rounded-full border border-white/45 bg-white/70 px-4 py-2 text-xs font-semibold text-ink/70 shadow-sm backdrop-blur">
-                Tuesday • Primer 4:00PM-5:45PM
-              </div>
-              <div className="animate-drift rounded-full border border-pine/15 bg-pine/10 px-4 py-2 text-xs font-semibold text-pine shadow-sm">
-                Team practice • 6:00PM-8:00PM
-              </div>
-              <div className="animate-float-slow rounded-full border border-clay/15 bg-clay/10 px-4 py-2 text-xs font-semibold text-clay shadow-sm">
-                Route log opens after session
-              </div>
-              <div className="animate-drift rounded-full border border-ink/10 bg-white/80 px-4 py-2 text-xs font-semibold text-ink/70 shadow-sm backdrop-blur">
-                AI video analysis • Beta and body position
-              </div>
-              <div className="animate-float-slow rounded-full border border-pine/15 bg-[#eff6ef] px-4 py-2 text-xs font-semibold text-pine shadow-sm">
-                Personal coach recap • Tonight at 8:30PM
-              </div>
-              <div className="animate-drift rounded-full border border-clay/15 bg-[#fff2eb] px-4 py-2 text-xs font-semibold text-clay shadow-sm">
-                Weakness ring update • Power endurance rising
+            <div className="mt-8 rounded-[30px] border border-white/45 bg-white/65 p-4 shadow-sm backdrop-blur">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-pine/70">A day in climb.</p>
+              <div className="mt-4 grid gap-3">
+                {[
+                  ["4:00PM", "Primer session", "Open the plan and start the workout."],
+                  ["6:00PM", "Team practice", "The calendar stays tied to training load."],
+                  ["After", "Route log + coach recap", "Review the climb and roll it into the next plan."],
+                ].map(([time, title, body], index) => (
+                  <div key={title} className="grid grid-cols-[64px_1fr] gap-3 rounded-[24px] bg-white/80 px-4 py-3">
+                    <div className="text-xs font-semibold text-ink/45">{time}</div>
+                    <div>
+                      <p className="text-sm font-semibold text-ink">{title}</p>
+                      <p className="mt-1 text-sm text-ink/62">{body}</p>
+                    </div>
+                    {index < 2 ? <div className="col-span-2 h-px bg-ink/6" /> : null}
+                  </div>
+                ))}
               </div>
             </div>
           </div>

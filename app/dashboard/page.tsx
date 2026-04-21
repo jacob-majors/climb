@@ -65,6 +65,13 @@ type TodayItem = {
   notes?: string;
 };
 
+type TimelineItem = {
+  title: string;
+  time?: string | null;
+  type: CalendarEntryType | "session";
+  note?: string | null;
+};
+
 const todayPriority: Record<CalendarEntryType, number> = {
   work: 0,
   practice: 1,
@@ -271,6 +278,21 @@ function compactSentences(value?: string | null, count = 2) {
   return sentences.slice(0, count).join(" ");
 }
 
+function textBlocks(value?: string | null, count = 3) {
+  if (!value) return [];
+  return value
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, count);
+}
+
+function sessionStepBlocks(value?: string | null) {
+  const blocks = textBlocks(value, 5);
+  return blocks.length ? blocks : value ? [value] : [];
+}
+
 function whyTodaySummary({
   sessionEntry,
   recovery,
@@ -300,6 +322,39 @@ function whyTodaySummary({
   }
 
   return reasons.join(" ");
+}
+
+function whyTodayBlocks({
+  sessionEntry,
+  recovery,
+  nextComp,
+}: {
+  sessionEntry: ReturnType<typeof getUpcomingSession>;
+  recovery: ReturnType<typeof getRecoveryBand>;
+  nextComp: Athlete["competitionEvents"][number] | null;
+}) {
+  if (!sessionEntry) {
+    return ["The dashboard is waiting on a current training session before it can explain today's focus."];
+  }
+
+  const blocks = [compactSentences(sessionEntry.session.whyChosen, 1) ?? "This is the next planned session in your week."];
+
+  if (recovery.band === "red") {
+    blocks.push("Recovery is low, so today should stay controlled and high quality.");
+  } else if (recovery.band === "yellow") {
+    blocks.push("Recovery is okay, but not unlimited, so do the work without forcing extra volume.");
+  } else {
+    blocks.push("Recovery looks good, so the planned quality can stay high.");
+  }
+
+  if (nextComp) {
+    const days = daysToCompetition(nextComp.eventDate);
+    if (days >= 0 && days <= 14) {
+      blocks.push(`This session also supports ${nextComp.name} in ${days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"}`}.`);
+    }
+  }
+
+  return blocks;
 }
 
 function weekWhySummary({
@@ -545,6 +600,29 @@ function upcomingAppearance(type: UpcomingItem["type"]) {
   }
 }
 
+function timelineAppearance(type: TimelineItem["type"]) {
+  switch (type) {
+    case "session":
+      return "bg-pine";
+    case "practice":
+      return "bg-moss";
+    case "work":
+      return "bg-clay";
+    case "school":
+      return "bg-blue-500";
+    case "competition":
+      return "bg-clay";
+    case "climbing":
+      return "bg-purple-500";
+    case "recovery":
+      return "bg-teal-500";
+    case "travel":
+      return "bg-amber-500";
+    default:
+      return "bg-ink/40";
+  }
+}
+
 function selectCurrentWeekPlan(plans: Athlete["trainingPlans"]) {
   if (!plans.length) return undefined;
 
@@ -725,7 +803,23 @@ export default async function DashboardPage() {
   }
 
   const todayWhy = whyTodaySummary({ sessionEntry, recovery, nextComp });
+  const todayWhyBlocks = whyTodayBlocks({ sessionEntry, recovery, nextComp });
   const weekWhy = weekWhySummary({ currentPlan, recovery, nextComp });
+  const timelineItems: TimelineItem[] = todayItems.length
+    ? todayItems.map((item) => ({
+        title: item.title,
+        time: item.time,
+        type: item.type,
+        note: item.notes,
+      }))
+    : sessionEntry
+      ? [{
+          title: sessionEntry.session.title,
+          time: formatScheduledRange(sessionEntry.session.scheduledStartTime, sessionEntry.session.scheduledEndTime) ?? sessionEntry.windowLabel,
+          type: "session",
+          note: compactSentences(sessionEntry.session.whyChosen, 1),
+        }]
+      : [];
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
@@ -960,36 +1054,35 @@ export default async function DashboardPage() {
 
           <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Why today looks like this</p>
-            <p className="mt-2 text-sm leading-6 text-ink">{todayWhy}</p>
+            <div className="mt-3 grid gap-2">
+              {todayWhyBlocks.map((block) => (
+                <div key={block} className="rounded-2xl bg-white/80 px-3 py-3 text-sm leading-6 text-ink">
+                  {block}
+                </div>
+              ))}
+            </div>
           </div>
 
-          {todayItem ? (
-            <div className="space-y-3">
-              {(() => {
-                const appearance = upcomingAppearance(todayItem.type);
-
-                return (
-                  <div className="flex items-start gap-3 rounded-2xl border border-ink/10 bg-mist/40 p-4">
-                    <span className={`rounded-2xl p-2.5 ${appearance.iconClass}`}>
-                      <appearance.Icon className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-ink">{todayItem.title}</p>
-                      {todayItem.time ? <p className="mt-1 text-sm text-ink/65">{humanizeTimeRange(todayItem.time)}</p> : null}
-                      {todayItem.notes ? <p className="mt-2 text-xs leading-5 text-ink/55">{todayItem.notes}</p> : null}
+          {timelineItems.length ? (
+            <div className="rounded-2xl border border-ink/10 bg-mist/35 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Timeline</p>
+              <div className="mt-4 space-y-4">
+                {timelineItems.map((item, index) => (
+                  <div key={`${item.title}-${index}`} className="flex gap-3">
+                    <div className="flex w-16 flex-col items-end pt-0.5">
+                      <p className="text-xs font-semibold text-ink/55">{item.time ? humanizeTimeRange(item.time) ?? item.time : "Any time"}</p>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className={`h-3 w-3 rounded-full ${timelineAppearance(item.type)}`} />
+                      {index < timelineItems.length - 1 ? <span className="mt-1 h-full w-px bg-ink/10" /> : null}
+                    </div>
+                    <div className="min-w-0 flex-1 rounded-2xl bg-white px-3 py-3">
+                      <p className="text-sm font-semibold text-ink">{item.title}</p>
+                      {item.note ? <p className="mt-1 text-xs leading-5 text-ink/55">{item.note}</p> : null}
                     </div>
                   </div>
-                );
-              })()}
-            </div>
-          ) : sessionEntry ? (
-            <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Next session</p>
-              <p className="mt-2 text-sm font-semibold text-ink">{sessionEntry.session.title}</p>
-              <p className="mt-1 text-sm text-ink/65">
-                {sessionEntry.session.dayLabel}
-                {sessionEntry.windowLabel ? ` • ${sessionEntry.windowLabel}` : ""}
-              </p>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-ink/10 p-4 text-sm text-ink/55">Nothing is scheduled for today.</div>
@@ -1042,7 +1135,13 @@ export default async function DashboardPage() {
                     <p className="text-xs text-ink/40">peak form</p>
                   </div>
                 </div>
-                <p className="mt-3 text-xs leading-5 text-ink/50">{peakForecast.rationale}</p>
+                <div className="mt-3 grid gap-2">
+                  {textBlocks(peakForecast.rationale, 3).map((block) => (
+                    <div key={block} className="rounded-2xl border border-ink/8 bg-white px-3 py-2.5 text-xs leading-5 text-ink/55">
+                      {block}
+                    </div>
+                  ))}
+                </div>
               </div>
             </details>
           ) : (
@@ -1114,15 +1213,27 @@ export default async function DashboardPage() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Why</p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{compactSentences(sessionEntry.session.whyChosen, 2) ?? coach.goal}</p>
-                </div>
+                    <div className="mt-2 grid gap-2">
+                      {textBlocks(compactSentences(sessionEntry.session.whyChosen, 2) ?? coach.goal, 2).map((block) => (
+                        <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                      ))}
+                    </div>
+                  </div>
                 <div className="rounded-2xl border border-ink/10 bg-white p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">How hard</p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{coach.effort}</p>
+                  <div className="mt-2 grid gap-2">
+                    {textBlocks(coach.effort, 2).map((block) => (
+                      <div key={block} className="rounded-2xl bg-mist px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                    ))}
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Success looks like</p>
-                  <p className="mt-2 text-sm leading-6 text-emerald-950/80">{coach.win}</p>
+                  <div className="mt-2 grid gap-2">
+                    {textBlocks(coach.win, 2).map((block) => (
+                      <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-emerald-950/80">{block}</div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1154,19 +1265,35 @@ export default async function DashboardPage() {
               <div className="grid gap-3 border-t border-ink/8 p-4">
                 <div className="rounded-2xl bg-mist p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Warm-up</p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.warmup}</p>
+                  <div className="mt-2 grid gap-2">
+                    {sessionStepBlocks(sessionEntry.session.warmup).map((block) => (
+                      <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                    ))}
+                  </div>
                 </div>
                 <div className="rounded-2xl bg-mist p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">What to do</p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.mainWork}</p>
+                  <div className="mt-2 grid gap-2">
+                    {sessionStepBlocks(sessionEntry.session.mainWork).map((block) => (
+                      <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                    ))}
+                  </div>
                 </div>
                 <div className="rounded-2xl bg-mist p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Why this session</p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.whyChosen}</p>
+                  <div className="mt-2 grid gap-2">
+                    {sessionStepBlocks(sessionEntry.session.whyChosen).map((block) => (
+                      <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                    ))}
+                  </div>
                 </div>
                 <div className="rounded-2xl bg-mist p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Cool-down</p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.cooldown}</p>
+                  <div className="mt-2 grid gap-2">
+                    {sessionStepBlocks(sessionEntry.session.cooldown).map((block) => (
+                      <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </details>
@@ -1345,18 +1472,47 @@ export default async function DashboardPage() {
                         </Link>
                         <div className="rounded-2xl bg-mist p-4">
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Why this day</p>
-                          <p className="mt-2 text-sm leading-6 text-ink">{item.session.whyChosen}</p>
+                          <div className="mt-2 grid gap-2">
+                            {sessionStepBlocks(item.session.whyChosen).map((block) => (
+                              <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                            ))}
+                          </div>
                         </div>
                         <div className="rounded-2xl bg-mist p-4">
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">What to do</p>
-                          <p className="mt-2 text-sm leading-6 text-ink">{item.session.mainWork}</p>
+                          <div className="mt-2 grid gap-2">
+                            {sessionStepBlocks(item.session.mainWork).map((block) => (
+                              <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                            ))}
+                          </div>
                         </div>
                         <details className="rounded-2xl bg-mist p-4">
                           <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.18em] text-pine">Warm-up, cool-down, and recovery</summary>
                           <div className="mt-3 grid gap-3">
-                            <p className="text-sm leading-6 text-ink"><span className="font-semibold">Warm-up:</span> {item.session.warmup}</p>
-                            <p className="text-sm leading-6 text-ink"><span className="font-semibold">Cool-down:</span> {item.session.cooldown}</p>
-                            <p className="text-sm leading-6 text-ink"><span className="font-semibold">Recovery note:</span> {item.session.recoveryNotes}</p>
+                            <div className="rounded-2xl bg-white/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-pine">Warm-up</p>
+                              <div className="mt-2 grid gap-2">
+                                {sessionStepBlocks(item.session.warmup).map((block) => (
+                                  <div key={block} className="rounded-2xl bg-mist px-3 py-2 text-sm leading-6 text-ink">{block}</div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl bg-white/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-pine">Cool-down</p>
+                              <div className="mt-2 grid gap-2">
+                                {sessionStepBlocks(item.session.cooldown).map((block) => (
+                                  <div key={block} className="rounded-2xl bg-mist px-3 py-2 text-sm leading-6 text-ink">{block}</div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl bg-white/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-pine">Recovery note</p>
+                              <div className="mt-2 grid gap-2">
+                                {sessionStepBlocks(item.session.recoveryNotes).map((block) => (
+                                  <div key={block} className="rounded-2xl bg-mist px-3 py-2 text-sm leading-6 text-ink">{block}</div>
+                                ))}
+                              </div>
+                            </div>
                           </div>
                         </details>
                       </div>
@@ -1390,7 +1546,11 @@ export default async function DashboardPage() {
                   </span>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Comp and recovery notes</p>
-                    <p className="mt-2 text-sm leading-6 text-ink">{compPrepSummary}</p>
+                    <div className="mt-2 grid gap-2">
+                      {sessionStepBlocks(compPrepSummary).map((block) => (
+                        <div key={block} className="rounded-2xl bg-white/80 px-3 py-2.5 text-sm leading-6 text-ink">{block}</div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

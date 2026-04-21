@@ -60,9 +60,9 @@ function availabilityValue(raw: string | null | undefined, day: string, fallback
   catch { return fallback; }
 }
 
-function getNextCompetition<T extends { eventDate: Date }>(competitions: T[]) {
+function getUpcomingCompetitions<T extends { eventDate: Date }>(competitions: T[]) {
   const today = startOfDay(new Date());
-  return competitions.find((competition) => differenceInCalendarDays(startOfDay(competition.eventDate), today) >= 0) ?? null;
+  return competitions.filter((competition) => differenceInCalendarDays(startOfDay(competition.eventDate), today) >= 0);
 }
 
 export default async function SchedulePage({ searchParams }: SchedulePageProps) {
@@ -97,17 +97,14 @@ export default async function SchedulePage({ searchParams }: SchedulePageProps) 
     return acc;
   }, {});
 
-  const nextCompetition = getNextCompetition(athlete.competitionEvents);
-  const competitions = nextCompetition
-    ? [{
-        id: nextCompetition.id,
-        name: nextCompetition.name,
-        date: toDateInputValue(nextCompetition.eventDate),
-        location: nextCompetition.location ?? "",
-        discipline: nextCompetition.discipline,
-        notes: nextCompetition.notes ?? "",
-      }]
-    : [];
+  const competitions = getUpcomingCompetitions(athlete.competitionEvents).map((competition) => ({
+    id: competition.id,
+    name: competition.name,
+    date: toDateInputValue(competition.eventDate),
+    location: competition.location ?? "",
+    discipline: competition.discipline,
+    notes: competition.notes ?? "",
+  }));
 
   const hasCalendar = Boolean(schedule?.calendarSourceUrl);
   const linkCount = schedule?.calendarSourceUrl?.split("\n").filter(Boolean).length ?? 0;

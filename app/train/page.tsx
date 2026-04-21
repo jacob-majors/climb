@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, CheckCircle2, Circle, Play } from "lucide-react";
 import { ClimbTimer } from "@/components/climb-timer";
+import { TrainSessionWorkbench } from "@/components/train-session-workbench";
 import { Card } from "@/components/ui/card";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { getActiveAthlete } from "@/lib/data";
@@ -88,11 +89,20 @@ export default async function TrainPage() {
 
       {/* Main work + Warmup/Cooldown */}
       {sessionEntry && (
-        <Card className="divide-y divide-ink/8 p-0 overflow-hidden">
+        <Card className="space-y-4">
           {sessionEntry.session.mainWork && (
-            <div className="p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-pine">Main work</p>
-              <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.mainWork}</p>
+            <div className="rounded-[24px] bg-mist p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-pine">Plan</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-2xl border border-ink/8 bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/35">Goal</p>
+                  <p className="mt-2 text-sm font-semibold text-ink">{formatSessionType(sessionEntry.session.sessionType)}</p>
+                </div>
+                <div className="rounded-2xl border border-ink/8 bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/35">How hard</p>
+                  <p className="mt-2 text-sm font-semibold text-ink">{intensityLabel(sessionEntry.session.intensity)}</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -109,22 +119,21 @@ export default async function TrainPage() {
                 </p>
               ))}
               {sessionEntry.session.warmup && (
-                <p className="mt-2 text-xs leading-5 text-ink/55 pt-1 border-t border-ink/8">{sessionEntry.session.warmup}</p>
+                <div className="mt-2 rounded-2xl border border-ink/8 bg-mist/40 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/35">Extra today</p>
+                  <p className="mt-1 text-xs leading-5 text-ink/55">{sessionEntry.session.warmup}</p>
+                </div>
               )}
             </div>
           </details>
 
-          {sessionEntry.session.cooldown && (
-            <details className="group">
-              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3">
-                <p className="text-xs font-semibold text-ink/60">Cool-down</p>
-                <span className="text-[10px] text-ink/30 transition-transform group-open:rotate-180">▼</span>
-              </summary>
-              <div className="px-4 pb-4">
-                <p className="text-xs leading-5 text-ink/60">{sessionEntry.session.cooldown}</p>
-              </div>
-            </details>
-          )}
+          <TrainSessionWorkbench
+            sessionId={sessionEntry.session.id}
+            sessionTitle={sessionEntry.session.title}
+            mainWork={sessionEntry.session.mainWork}
+            cooldown={sessionEntry.session.cooldown}
+            whyChosen={sessionEntry.session.whyChosen}
+          />
         </Card>
       )}
 
