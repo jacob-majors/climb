@@ -197,31 +197,31 @@ const pricingPlans = [
     name: "Free",
     price: "$0",
     tone: "ink" as const,
-    description: "Good for trying the flow, logging routes, and seeing how your week fits together.",
+    description: "Everything in the app — full planning, route logging, session flow, and calendar scheduling. No credit card.",
     ctaLabel: "Start Free",
     ctaHref: "/sign-up",
     features: [
-      "Basic weekly schedule",
-      "Route logging",
-      "Simple session view",
-      "Account and landing-page access",
+      "Full weekly schedule and session planning",
+      "Route logging with weakness tracking",
+      "Session flow — timers, warm-up, main set",
+      "Drag-and-place sessions into real calendar windows",
+      "Competition and recovery planning",
+      "Strain, Try Hard, and Weakness ring scores",
     ],
   },
   {
     name: "Pro",
     price: "$5",
     tone: "clay" as const,
-    description: "Full planning plus AI help for climbers who want the app to think like a coach, not a spreadsheet.",
+    description: "Add an AI layer that watches your climbs, reads your logs, and writes the plan for you.",
     ctaLabel: "Go Pro",
     ctaHref: "/sign-up",
-    badge: "Most Popular",
+    badge: "AI Add-on",
     features: [
       "AI video analysis from route clips",
-      "Personal coach summaries after every session",
-      "Smart weekly plan generation",
-      "Drag-and-place sessions into real calendar windows",
-      "Practice primers and recovery-aware changes",
-      "Route analysis handoff with weakness tracking",
+      "Personal coach recap after every session",
+      "AI-generated weekly plan with rationale",
+      "Smart practice primers based on weaknesses",
     ],
   },
 ];
@@ -298,7 +298,7 @@ export function PricingSection({ standalone = false }: { standalone?: boolean })
           <span className="block text-clay">Keep it cheap.</span>
         </h2>
         <p className="mx-auto max-w-2xl text-base leading-7 text-ink/68">
-          Start free, then upgrade to Pro for full planning, AI route breakdowns, and a coach-style layer that helps explain what to do next.
+          Free gets you everything. Pro adds the AI layer — video analysis, coach recaps, and smart plan generation.
         </p>
       </div>
 
