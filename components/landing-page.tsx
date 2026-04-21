@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CalendarClock, ChartNoAxesCombined, Route, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarClock, ChartNoAxesCombined, Check, Route, Sparkles, WandSparkles } from "lucide-react";
+import { BrandGlyph } from "@/components/brand-mark";
+import { ProgressRing } from "@/components/progress-ring";
 
 function clamp(value: number, min = 0, max = 1) {
   return Math.min(max, Math.max(min, value));
@@ -37,13 +39,13 @@ function LeadFallGraphic({
   progress: number;
   mode?: "card" | "backdrop";
 }) {
-  const normalized = clamp((progress - 0.015) / 0.28);
-  const climberY = 106 + normalized * 198;
-  const climberX = 214 + normalized * 36;
-  const climberRotation = normalized * 36;
-  const ropeCatch = normalized > 0.76 ? (normalized - 0.76) / 0.24 : 0;
-  const belayerLean = normalized > 0.72 ? 1 + (normalized - 0.72) * 0.3 : 1;
-  const chalkOpacity = clamp((normalized - 0.18) / 0.3);
+  const normalized = clamp((progress - 0.01) / 0.18);
+  const climberY = 102 + normalized * 228;
+  const climberX = 210 + normalized * 42;
+  const climberRotation = normalized * 44;
+  const ropeCatch = normalized > 0.68 ? (normalized - 0.68) / 0.32 : 0;
+  const belayerLean = normalized > 0.66 ? 1 + (normalized - 0.66) * 0.36 : 1;
+  const chalkOpacity = clamp((normalized - 0.12) / 0.24);
   const blurStrength = mode === "backdrop" ? 1.4 + normalized * 1.8 : 0;
 
   const ropePath = `M 276 380 C 274 328, ${260 + normalized * 24} ${286 + normalized * 18}, ${climberX + 2} ${climberY + 10}`;
@@ -191,13 +193,201 @@ function LeadFallGraphic({
   );
 }
 
+const pricingPlans = [
+  {
+    name: "Free",
+    price: "$0",
+    tone: "ink" as const,
+    description: "Good for trying the flow, logging routes, and seeing how your week fits together.",
+    ctaLabel: "Start Free",
+    ctaHref: "/sign-up",
+    features: [
+      "Basic weekly schedule",
+      "Route logging",
+      "Simple session view",
+      "Account and landing-page access",
+    ],
+  },
+  {
+    name: "Pro",
+    price: "$5",
+    tone: "clay" as const,
+    description: "Full planning plus AI help for climbers who want the app to think like a coach, not a spreadsheet.",
+    ctaLabel: "Go Pro",
+    ctaHref: "/sign-up",
+    badge: "Most Popular",
+    features: [
+      "AI video analysis from route clips",
+      "Personal coach summaries after every session",
+      "Smart weekly plan generation",
+      "Drag-and-place sessions into real calendar windows",
+      "Practice primers and recovery-aware changes",
+      "Route analysis handoff with weakness tracking",
+    ],
+  },
+];
+
+function RingsFormulaSection() {
+  return (
+    <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-8 lg:px-12">
+      <div className="grid gap-8 rounded-[36px] border border-ink/10 bg-white/75 p-7 shadow-[0_24px_70px_rgba(16,20,24,0.08)] backdrop-blur sm:p-8 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="space-y-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">Rings + Formula</p>
+          <h2 className="text-3xl leading-tight text-ink sm:text-4xl" style={{ fontFamily: "Georgia, Times New Roman, serif" }}>
+            Show the training signals, not just the vibe.
+          </h2>
+          <p className="text-base leading-7 text-ink/68">
+            The rings preview how the app scores a session and route log. These numbers come from the same weighted formulas we use inside the product, so athletes can see why the next plan changed.
+          </p>
+
+          <div className="rounded-[28px] border border-pine/10 bg-pine/5 p-5">
+            <p className="text-sm font-semibold text-ink">Example session</p>
+            <p className="mt-2 text-sm leading-6 text-ink/66">
+              Tuesday power-endurance primer, load score 8, 95 minutes, high intensity, route notes showing repeated pump and hesitation.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          <div className="grid gap-5 rounded-[30px] border border-ink/10 bg-[#fcfaf4] p-5 sm:grid-cols-3">
+            <ProgressRing label="Strain" helper="How much load the session puts into the week." valueLabel="14.4 / 21" percent={69} tone="pine" />
+            <ProgressRing label="Try Hard" helper="How committed and intense the effort was." valueLabel="9.9 / 10" percent={99} tone="clay" />
+            <ProgressRing label="Weakness Signal" helper="How strongly the latest logs point to one limiter." valueLabel="74 / 100" percent={74} tone="ink" />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-[28px] border border-ink/10 bg-white p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-pine/70">Strain formula</p>
+              <p className="mt-3 text-sm leading-6 text-ink/66">
+                <code>loadScore * 0.9 + duration / 24 + intensity adjustment + session bias</code>, capped from <code>0</code> to <code>21</code>.
+              </p>
+              <p className="mt-3 text-sm font-semibold text-ink">8*0.9 + 95/24 + 2 + 1.2 = 14.4</p>
+            </div>
+
+            <div className="rounded-[28px] border border-ink/10 bg-white p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-clay/80">Try Hard formula</p>
+              <p className="mt-3 text-sm leading-6 text-ink/66">
+                <code>intensity base + session bias + loadScore / 5 + long-session bonus</code>, capped from <code>0</code> to <code>10</code>.
+              </p>
+              <p className="mt-3 text-sm font-semibold text-ink">7 + 0.8 + 1.6 + 0.5 = 9.9</p>
+            </div>
+
+            <div className="rounded-[28px] border border-ink/10 bg-white p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink/50">Weakness formula</p>
+              <p className="mt-3 text-sm leading-6 text-ink/66">
+                Keyword hits get recency weighting, numeric triggers add score, then discipline boosts keep the top limiter visible when data is thin.
+              </p>
+              <p className="mt-3 text-sm font-semibold text-ink">pump hits + confidence drop + lead boost = power-endurance signal</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function PricingSection({ standalone = false }: { standalone?: boolean }) {
+  return (
+    <section className={`mx-auto max-w-7xl px-4 ${standalone ? "py-10" : "pb-24"} sm:px-8 lg:px-12`}>
+      <div className="space-y-4 text-center">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">Pricing</p>
+        <h2
+          className="text-4xl leading-tight text-ink sm:text-5xl"
+          style={{ fontFamily: "Georgia, Times New Roman, serif" }}
+        >
+          Keep it simple.
+          <span className="block text-clay">Keep it cheap.</span>
+        </h2>
+        <p className="mx-auto max-w-2xl text-base leading-7 text-ink/68">
+          Start free, then upgrade to Pro for full planning, AI route breakdowns, and a coach-style layer that helps explain what to do next.
+        </p>
+      </div>
+
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        {pricingPlans.map((plan) => {
+          const isPro = plan.name === "Pro";
+          return (
+            <div
+              key={plan.name}
+              className={
+                isPro
+                  ? "relative overflow-hidden rounded-[34px] border border-clay/20 bg-[linear-gradient(180deg,#fff9f2_0%,#f7ecdc_100%)] p-7 shadow-[0_26px_70px_rgba(16,20,24,0.1)]"
+                  : "rounded-[34px] border border-ink/10 bg-white/80 p-7 shadow-[0_22px_60px_rgba(16,20,24,0.08)] backdrop-blur"
+              }
+            >
+              {plan.badge ? (
+                <div className="absolute right-4 top-4 rounded-full bg-clay px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-chalk">
+                  {plan.badge}
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-3">
+                {isPro ? (
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-clay/12 text-clay">
+                    <WandSparkles className="h-5 w-5" />
+                  </div>
+                ) : (
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pine/10 text-pine">
+                    <BrandGlyph className="h-11 w-11 rounded-[1rem] border-none shadow-none" />
+                  </div>
+                )}
+                <div>
+                  <p className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${isPro ? "text-clay" : "text-ink/45"}`}>
+                    {isPro ? "climb. Pro" : "Free"}
+                  </p>
+                  <div className="mt-2 flex items-end gap-2">
+                    <span className="text-5xl font-black text-ink">{plan.price}</span>
+                    <span className="pb-1 text-sm font-semibold text-ink/50">/ month</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm leading-6 text-ink/68">{plan.description}</p>
+              <div className="mt-6 space-y-3">
+                {plan.features.map((feature) => (
+                  <div key={feature} className={`flex items-start gap-3 text-sm ${isPro ? "text-ink/78" : "text-ink/72"}`}>
+                    <Check className={`mt-0.5 h-4 w-4 ${isPro ? "text-clay" : "text-pine"}`} />
+                    <span>{feature}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href={plan.ctaHref}
+                  className={
+                    isPro
+                      ? "inline-flex items-center justify-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-chalk transition hover:bg-pine"
+                      : "inline-flex rounded-full border border-ink/12 px-5 py-3 text-sm font-semibold text-ink transition hover:border-pine/35"
+                  }
+                >
+                  {plan.ctaLabel}
+                  {isPro ? <ArrowRight className="h-4 w-4" /> : null}
+                </Link>
+                {isPro ? (
+                  <Link
+                    href="/sign-in"
+                    className="inline-flex items-center justify-center rounded-full border border-ink/12 bg-white/60 px-5 py-3 text-sm font-semibold text-ink transition hover:border-clay/35"
+                  >
+                    Sign In
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export function LandingPage() {
   const progress = useScrollProgress();
 
   return (
-    <div className="-mx-3 -mt-16 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+    <div className="-mx-3 -mt-16 overflow-hidden px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <section className="relative overflow-hidden px-4 pb-20 pt-24 sm:px-8 lg:px-12">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(217,108,71,0.18),transparent_24%),radial-gradient(circle_at_80%_18%,rgba(39,78,69,0.18),transparent_22%),linear-gradient(180deg,#f7efe2_0%,#f3ebdd_58%,#f7f2ea_100%)]" />
+        <div className="absolute left-1/2 top-0 h-full w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_15%_15%,rgba(217,108,71,0.18),transparent_24%),radial-gradient(circle_at_80%_18%,rgba(39,78,69,0.18),transparent_22%),linear-gradient(180deg,#f7efe2_0%,#f3ebdd_58%,#f7f2ea_100%)]" />
         <div className="pointer-events-none absolute -left-24 top-28 h-64 w-64 rounded-full bg-clay/10 blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-pine/10 blur-3xl" />
         <LeadFallGraphic progress={progress} mode="backdrop" />
@@ -219,7 +409,10 @@ export function LandingPage() {
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-7 text-ink/72 sm:text-lg">
-              `climb.` turns school, work, comps, route logs, recovery, and real calendar gaps into sessions you can actually place, run, and review on your phone.
+              <span className="inline-flex translate-y-1.5 pr-2">
+                <BrandGlyph className="h-8 w-8 rounded-[0.95rem]" />
+              </span>
+              turns school, work, comps, route logs, recovery, and real calendar gaps into sessions you can actually place, run, and review on your phone.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -266,6 +459,15 @@ export function LandingPage() {
               </div>
               <div className="animate-float-slow rounded-full border border-clay/15 bg-clay/10 px-4 py-2 text-xs font-semibold text-clay shadow-sm">
                 Route log opens after session
+              </div>
+              <div className="animate-drift rounded-full border border-ink/10 bg-white/80 px-4 py-2 text-xs font-semibold text-ink/70 shadow-sm backdrop-blur">
+                AI video analysis • Beta and body position
+              </div>
+              <div className="animate-float-slow rounded-full border border-pine/15 bg-[#eff6ef] px-4 py-2 text-xs font-semibold text-pine shadow-sm">
+                Personal coach recap • Tonight at 8:30PM
+              </div>
+              <div className="animate-drift rounded-full border border-clay/15 bg-[#fff2eb] px-4 py-2 text-xs font-semibold text-clay shadow-sm">
+                Weakness ring update • Power endurance rising
               </div>
             </div>
           </div>
@@ -387,6 +589,10 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      <RingsFormulaSection />
+
+      <PricingSection />
 
       <section className="mx-auto max-w-7xl px-4 pb-28 sm:px-8 lg:px-12">
         <div className="overflow-hidden rounded-[36px] border border-ink/10 bg-[linear-gradient(135deg,#132823_0%,#1d3a33_50%,#274E45_100%)] p-8 text-chalk shadow-[0_28px_80px_rgba(16,20,24,0.18)] sm:p-10">
