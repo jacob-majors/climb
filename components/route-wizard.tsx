@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { ClimbType, GradeScale } from "@prisma/client";
 import { saveRouteEntryAction } from "@/app/actions";
@@ -29,6 +30,41 @@ const ROUTE_COLORS = [
 ] as const;
 
 type RouteColor = (typeof ROUTE_COLORS)[number];
+
+function GymOptionLogo({ kind }: { kind: "sessions" | "other" }) {
+  if (kind === "sessions") {
+    return (
+      <div className="inline-flex items-center rounded-2xl border border-ink/10 bg-white px-3 py-2 shadow-sm">
+        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white">
+          <Image
+            src="https://1climb.org/wp-content/uploads/2019/09/session-climbing-gym-grayscale-logo.png"
+            alt="Sessions Climbing"
+            width={40}
+            height={40}
+            className="h-10 w-10 object-contain"
+            unoptimized
+          />
+        </div>
+        <div className="ml-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ink/45">Gym</p>
+          <p className="text-sm font-black uppercase tracking-[0.12em] text-ink">Sessions</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center rounded-2xl border border-ink/10 bg-white px-3 py-2 shadow-sm">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sandstone/35 text-lg">
+        🧗
+      </div>
+      <div className="ml-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ink/45">Gym</p>
+        <p className="text-sm font-black uppercase tracking-[0.12em] text-ink">Other</p>
+      </div>
+    </div>
+  );
+}
 
 const YDS_GRADES = [
   "5.5","5.6","5.7","5.8","5.9",
@@ -894,7 +930,9 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
               onClick={() => chooseGym(true)}
               className="rounded-[24px] border border-pine/20 bg-[linear-gradient(180deg,#f5faf8_0%,#eef6f3_100%)] px-5 py-7 text-left transition-all hover:border-pine/45 hover:shadow-lg active:scale-[0.99]"
             >
-              <p className="text-3xl mb-2">📍</p>
+              <div className="mb-4">
+                <GymOptionLogo kind="sessions" />
+              </div>
               <p className="text-base font-semibold text-ink">Sessions</p>
               <p className="mt-1 text-sm text-ink/60">Use the zone map and reuse routes people already logged.</p>
             </button>
@@ -903,7 +941,9 @@ export function RouteWizard({ sessionsRoutes }: { sessionsRoutes: RouteWizardSha
               onClick={() => chooseGym(false)}
               className="rounded-[24px] border border-ink/10 bg-white px-5 py-7 text-left transition-all hover:border-pine/35 hover:shadow-lg active:scale-[0.99]"
             >
-              <p className="text-3xl mb-2">🏠</p>
+              <div className="mb-4">
+                <GymOptionLogo kind="other" />
+              </div>
               <p className="text-base font-semibold text-ink">Other gym</p>
               <p className="mt-1 text-sm text-ink/60">Keep the same fast flow without the Sessions map.</p>
             </button>
