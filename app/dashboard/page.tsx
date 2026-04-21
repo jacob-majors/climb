@@ -673,6 +673,142 @@ export default async function DashboardPage() {
         </form>
       </Card>
 
+      {adherenceSummary ? (
+        <Card>
+          <details className="group">
+            <summary className="list-none cursor-pointer">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Training rings</p>
+                  <p className="mt-1 text-sm text-ink/60">Tap to see the full breakdown.</p>
+                </div>
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/35 transition group-open:rotate-180">▼</span>
+              </div>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                <ProgressRing
+                  label="Sessions"
+                  valueLabel={ringSessionValue}
+                  helper={hasDueSessions ? "Due sessions logged so far." : sessionEntry ? "First scored session is coming up next." : "Nothing planned yet."}
+                  percent={adherenceSummary.sessionPercent}
+                  tone="pine"
+                />
+                <ProgressRing
+                  label="Minutes"
+                  valueLabel={ringMinutesValue}
+                  helper={hasDueSessions ? "Planned minutes vs. actual minutes." : sessionEntry ? "Next planned duration." : "No minutes planned yet."}
+                  percent={adherenceSummary.minutesPercent}
+                  tone="clay"
+                />
+                <ProgressRing
+                  label="Load"
+                  valueLabel={ringLoadValue}
+                  helper={hasDueSessions ? "Load hit so far this week." : sessionEntry ? "Next session load target." : "No load planned yet."}
+                  percent={adherenceSummary.loadPercent}
+                  tone="ink"
+                />
+              </div>
+            </summary>
+
+            <div className="mt-6 grid gap-5 border-t border-ink/8 pt-5 xl:grid-cols-[1.15fr_0.85fr]">
+              <div className="rounded-2xl bg-mist p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Progress read</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{progressHeadline}</p>
+                <p className="mt-2 text-sm leading-6 text-ink/70">{progressHelper}</p>
+                {adherenceSummary.skippedSessionCount ? (
+                  <p className="mt-3 text-sm font-medium text-clay">
+                    {adherenceSummary.skippedSessionCount} skipped session{adherenceSummary.skippedSessionCount === 1 ? "" : "s"} logged.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-4">
+                {adherenceSummary.sessionToLog && hasDueSessions ? (
+                  <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Quick log</p>
+                      <p className="text-sm font-semibold text-ink">{adherenceSummary.sessionToLog.session.title}</p>
+                      <p className="text-xs leading-5 text-ink/60">
+                        {adherenceSummary.sessionToLog.session.dayLabel}
+                        {adherenceSummary.sessionToLog.windowLabel ? ` • ${adherenceSummary.sessionToLog.windowLabel}` : ""}
+                      </p>
+                    </div>
+
+                    <form action={updateSessionCompletionAction} className="mt-4 space-y-3">
+                      <input type="hidden" name="sessionId" value={adherenceSummary.sessionToLog.session.id} />
+                      <input type="hidden" name="returnTo" value="/dashboard" />
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="grid gap-2">
+                          <span className="text-sm font-medium text-ink">Actual minutes</span>
+                          <input
+                            name="actualDurationMinutes"
+                            type="number"
+                            min="0"
+                            defaultValue={adherenceSummary.sessionToLog.session.actualDurationMinutes ?? adherenceSummary.sessionToLog.session.durationMinutes}
+                            className={selectClassName()}
+                          />
+                        </label>
+                        <label className="grid gap-2">
+                          <span className="text-sm font-medium text-ink">Notes</span>
+                          <input
+                            name="completionNotes"
+                            defaultValue={adherenceSummary.sessionToLog.session.completionNotes ?? ""}
+                            placeholder="Felt good, shortened, low skin..."
+                            className={selectClassName()}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="submit"
+                          name="completionStatus"
+                          value={completionStatus.completed}
+                          className="rounded-full bg-pine px-3 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink"
+                        >
+                          Done
+                        </button>
+                        <button
+                          type="submit"
+                          name="completionStatus"
+                          value={completionStatus.modified}
+                          className="rounded-full border border-pine/15 bg-white px-3 py-2.5 text-sm font-semibold text-pine transition hover:border-pine"
+                        >
+                          Adjusted
+                        </button>
+                        <button
+                          type="submit"
+                          name="completionStatus"
+                          value={completionStatus.skipped}
+                          className="rounded-full border border-clay/15 bg-white px-3 py-2.5 text-sm font-semibold text-clay transition hover:border-clay"
+                        >
+                          Skip
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : sessionEntry ? (
+                  <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Next target</p>
+                      <p className="text-sm font-semibold text-ink">{sessionEntry.session.title}</p>
+                      <p className="text-xs leading-5 text-ink/60">
+                        {sessionEntry.session.dayLabel}
+                        {sessionEntry.windowLabel ? ` • ${sessionEntry.windowLabel}` : ""}
+                      </p>
+                      <p className="text-sm leading-6 text-ink/70">
+                        Once you finish this session, come back here and log how closely you matched the plan.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </details>
+        </Card>
+      ) : null}
+
       <section className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Card className="space-y-4">
           <SectionHeading
@@ -773,136 +909,6 @@ export default async function DashboardPage() {
           </div>
         </Card>
       </section>
-
-      {adherenceSummary ? (
-        <Card className="space-y-5">
-          <SectionHeading
-            eyebrow="Plan Follow-Through"
-            title="Training rings"
-            description="These rings only score the sessions that should have happened by now, so future sessions do not count against you yet."
-          />
-
-          <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <ProgressRing
-                label="Sessions"
-                valueLabel={ringSessionValue}
-                helper={hasDueSessions ? "Due sessions logged so far." : sessionEntry ? "First scored session is coming up next." : "Nothing planned yet."}
-                percent={adherenceSummary.sessionPercent}
-                tone="pine"
-              />
-              <ProgressRing
-                label="Minutes"
-                valueLabel={ringMinutesValue}
-                helper={hasDueSessions ? "Planned minutes vs. actual minutes." : sessionEntry ? "Next planned duration." : "No minutes planned yet."}
-                percent={adherenceSummary.minutesPercent}
-                tone="clay"
-              />
-              <ProgressRing
-                label="Load"
-                valueLabel={ringLoadValue}
-                helper={hasDueSessions ? "Load hit so far this week." : sessionEntry ? "Next session load target." : "No load planned yet."}
-                percent={adherenceSummary.loadPercent}
-                tone="ink"
-              />
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-2xl bg-mist p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Progress read</p>
-                <p className="mt-2 text-lg font-semibold text-ink">{progressHeadline}</p>
-                <p className="mt-2 text-sm leading-6 text-ink/70">{progressHelper}</p>
-                {adherenceSummary.skippedSessionCount ? (
-                  <p className="mt-3 text-sm font-medium text-clay">
-                    {adherenceSummary.skippedSessionCount} skipped session{adherenceSummary.skippedSessionCount === 1 ? "" : "s"} logged.
-                  </p>
-                ) : null}
-              </div>
-
-              {adherenceSummary.sessionToLog && hasDueSessions ? (
-                <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Quick log</p>
-                    <p className="text-sm font-semibold text-ink">{adherenceSummary.sessionToLog.session.title}</p>
-                    <p className="text-xs leading-5 text-ink/60">
-                      {adherenceSummary.sessionToLog.session.dayLabel}
-                      {adherenceSummary.sessionToLog.windowLabel ? ` • ${adherenceSummary.sessionToLog.windowLabel}` : ""}
-                    </p>
-                  </div>
-
-                  <form action={updateSessionCompletionAction} className="mt-4 space-y-3">
-                    <input type="hidden" name="sessionId" value={adherenceSummary.sessionToLog.session.id} />
-                    <input type="hidden" name="returnTo" value="/dashboard" />
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="grid gap-2">
-                        <span className="text-sm font-medium text-ink">Actual minutes</span>
-                        <input
-                          name="actualDurationMinutes"
-                          type="number"
-                          min="0"
-                          defaultValue={adherenceSummary.sessionToLog.session.actualDurationMinutes ?? adherenceSummary.sessionToLog.session.durationMinutes}
-                          className={selectClassName()}
-                        />
-                      </label>
-                      <label className="grid gap-2">
-                        <span className="text-sm font-medium text-ink">Notes</span>
-                        <input
-                          name="completionNotes"
-                          defaultValue={adherenceSummary.sessionToLog.session.completionNotes ?? ""}
-                          placeholder="Felt good, shortened, low skin..."
-                          className={selectClassName()}
-                        />
-                      </label>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        type="submit"
-                        name="completionStatus"
-                        value={completionStatus.completed}
-                        className="rounded-full bg-pine px-3 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink"
-                      >
-                        Done
-                      </button>
-                      <button
-                        type="submit"
-                        name="completionStatus"
-                        value={completionStatus.modified}
-                        className="rounded-full border border-pine/15 bg-white px-3 py-2.5 text-sm font-semibold text-pine transition hover:border-pine"
-                      >
-                        Adjusted
-                      </button>
-                      <button
-                        type="submit"
-                        name="completionStatus"
-                        value={completionStatus.skipped}
-                        className="rounded-full border border-clay/15 bg-white px-3 py-2.5 text-sm font-semibold text-clay transition hover:border-clay"
-                      >
-                        Skip
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              ) : sessionEntry ? (
-                <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Next target</p>
-                    <p className="text-sm font-semibold text-ink">{sessionEntry.session.title}</p>
-                    <p className="text-xs leading-5 text-ink/60">
-                      {sessionEntry.session.dayLabel}
-                      {sessionEntry.windowLabel ? ` • ${sessionEntry.windowLabel}` : ""}
-                    </p>
-                    <p className="text-sm leading-6 text-ink/70">
-                      Once you finish this session, come back here and log how closely you matched the plan.
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </Card>
-      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
         {sessionEntry ? (

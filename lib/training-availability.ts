@@ -2,6 +2,8 @@ import { differenceInMinutes, format } from "date-fns";
 import { dayNames } from "@/lib/format";
 import { ImportedCalendarEvent } from "@/lib/ics";
 
+const CALENDAR_TIME_ZONE = "America/Los_Angeles";
+
 export type TrainingWindow = {
   start: string;
   end: string;
@@ -127,13 +129,38 @@ function mergeIntervals(intervals: Interval[]) {
 
 function getEventInterval(event: ImportedCalendarEvent): Interval | null {
   if (!event.end) return null;
-  const startMinutes = event.start.getHours() * 60 + event.start.getMinutes();
-  const endMinutes = event.end.getHours() * 60 + event.end.getMinutes();
+  const startParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: CALENDAR_TIME_ZONE,
+    weekday: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(event.start);
+  const endParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: CALENDAR_TIME_ZONE,
+    weekday: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(event.end);
+  const startByType = Object.fromEntries(startParts.map((part) => [part.type, part.value]));
+  const endByType = Object.fromEntries(endParts.map((part) => [part.type, part.value]));
+  const startMinutes = Number(startByType.hour) * 60 + Number(startByType.minute);
+  const endMinutes = Number(endByType.hour) * 60 + Number(endByType.minute);
   if (endMinutes <= startMinutes) return null;
   return {
     start: Math.max(DAY_START, startMinutes),
     end: Math.min(DAY_END, endMinutes),
   };
+}
+
+function getEventDayName(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: CALENDAR_TIME_ZONE,
+    weekday: "long",
+  }).formatToParts(date);
+  const weekday = parts.find((part) => part.type === "weekday")?.value;
+  return dayNames.find((day) => day === weekday) ?? null;
 }
 
 function freeIntervalsFromBusy(intervals: Interval[]) {
@@ -165,8 +192,8 @@ export function deriveAvailabilityFromCalendar(events: ImportedCalendarEvent[]) 
   for (const event of events) {
     const interval = getEventInterval(event);
     if (!interval) continue;
-    const jsDay = event.start.getDay();
-    const day = dayNames[(jsDay + 6) % 7];
+    const day = getEventDayName(event.start);
+    if (!day) continue;
     grouped.get(day)?.push(interval);
   }
 
