@@ -219,9 +219,9 @@ function personalizeMobility(ctx: PersonalizationContext): SessionContent {
     : "";
 
   return {
-    warmup: `Light pulse raiser (5 minutes easy movement) and joint prep.`,
-    mainWork: `Shoulders, thoracic mobility, hips, calves, and forearm maintenance.${mobilityNote} Spend 3–4 minutes on each area rather than rushing through.`,
-    cooldown: `Nasal breathing and progressive downshift. Avoid any aggressive stretching.`,
+    warmup: `Light pulse raiser (5 minutes easy movement), joint prep, and one easy hang or wall-touch set just to wake the body up.`,
+    mainWork: `Shoulders, thoracic mobility, hips, calves, and forearm maintenance.${mobilityNote} Spend 3–4 minutes on each area rather than rushing through. Finish with a few controlled climbing-specific ranges like high-steps, drop-knees, and scap pulls if available.`,
+    cooldown: `Nasal breathing, legs up or easy walking, and progressive downshift. Avoid any aggressive stretching.`,
     recoveryNotes: `Aim to leave feeling looser, not stretched out aggressively. Forced range gains don't stick without warmth.`,
   };
 }
@@ -231,10 +231,10 @@ function personalizeAntagonist(ctx: PersonalizationContext): SessionContent {
   const load = phase === "deload" ? "light" : phase === "realization" ? "moderate-to-heavy" : "moderate";
 
   return {
-    warmup: `Band work — pull-aparts, face pulls, serratus activation. 3 sets each.`,
-    mainWork: `Push pattern (push-ups or dumbbell press), scapular control (rows), rotator cuff, and posterior chain work at ${load} load. 3 sets of 8–15 reps.`,
-    cooldown: `Shoulder mobility and wrist care.`,
-    recoveryNotes: `Keep enough in reserve so tomorrow's climbing quality stays high. This is injury prevention work, not max-effort training.`,
+    warmup: `Band work, scap pulls, wrist prep, and 5 minutes of easy movement. Start with pull-aparts, face pulls, and serratus activation before loading anything heavy.`,
+    mainWork: `Strength block at ${load} load: 1 push pattern, 1 row or scapular control movement, rotator cuff work, posterior chain, and a short core finisher. Stay in the 6–12 rep range for the main lifts and 10–15 reps for prehab work.`,
+    cooldown: `Shoulder mobility, forearm extensors, and trunk reset.`,
+    recoveryNotes: `This should make you stronger and harder to break, not too smoked to climb well tomorrow. Leave 1–3 reps in reserve on every set.`,
   };
 }
 
@@ -244,7 +244,7 @@ function personalizeCore(ctx: PersonalizationContext): SessionContent {
 
   return {
     warmup: `Trunk activation — dead bugs and spinal prep.`,
-    mainWork: `${volume} each: hollow body holds (20–30 sec), anti-rotation (Pallof press or equivalent), hanging knee raises, and body-tension intervals on the wall. Quality reps only.`,
+    mainWork: `${volume} each: hollow body holds (20–30 sec), anti-rotation (Pallof press or equivalent), hanging knee raises, and body-tension intervals on the wall. If you have extra time, pair these with one push and one posterior-chain strength movement for a fuller support session.`,
     cooldown: `Hip flexor stretch and trunk reset (child's pose, spinal rotation).`,
     recoveryNotes: `Core is support work, not max-test territory. Keep quality high and stop a set when form breaks.`,
   };
@@ -256,10 +256,10 @@ function personalizeCore(ctx: PersonalizationContext): SessionContent {
 
 function personalizeActiveRecovery(): SessionContent {
   return {
-    warmup: "Gentle walk, easy bike, or light movement.",
-    mainWork: "Light circulation, mobility, and tissue care. No climbing-specific loading.",
-    cooldown: "Breathing reset and hydration.",
-    recoveryNotes: "Treat this as genuine recovery, not sneaky volume. Easy means easy.",
+    warmup: "Gentle walk, easy bike, or 5-10 minutes of very easy movement to get blood moving.",
+    mainWork: "20-30 minutes of easy circulation, mobility, tissue care, and light climbing-specific movement only if it feels restorative. Think recovery walk, bike, mobility flow, forearm flush, and easy shoulder care. No hard climbing load.",
+    cooldown: "Breathing reset, hydration, and a short downshift away from screens if possible.",
+    recoveryNotes: "Treat this as genuine recovery, not sneaky volume. You should finish fresher than you started.",
   };
 }
 

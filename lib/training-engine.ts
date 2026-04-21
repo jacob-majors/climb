@@ -293,13 +293,64 @@ const SESSION_META: Record<SessionType, SessionMeta> = {
   TECHNIQUE_DRILLS:    { intensity: IntensityLevel.MODERATE, baseLoadScore: 4, title: "Technique and movement economy" },
   FOOTWORK_DRILLS:     { intensity: IntensityLevel.LOW,      baseLoadScore: 3, title: "Footwork precision" },
   MOBILITY:            { intensity: IntensityLevel.LOW,      baseLoadScore: 2, title: "Mobility and tissue care" },
-  ANTAGONIST_STRENGTH: { intensity: IntensityLevel.MODERATE, baseLoadScore: 4, title: "Antagonist strength" },
+  ANTAGONIST_STRENGTH: { intensity: IntensityLevel.MODERATE, baseLoadScore: 4, title: "Strength and durability" },
   CORE:                { intensity: IntensityLevel.MODERATE, baseLoadScore: 3, title: "Core tension maintenance" },
-  ACTIVE_RECOVERY:     { intensity: IntensityLevel.LOW,      baseLoadScore: 1, title: "Active recovery" },
+  ACTIVE_RECOVERY:     { intensity: IntensityLevel.LOW,      baseLoadScore: 1, title: "Active recovery and reset" },
   FULL_REST:           { intensity: IntensityLevel.LOW,      baseLoadScore: 0, title: "Full rest" },
   COMPETITION:         { intensity: IntensityLevel.PEAK,     baseLoadScore: 9, title: "Competition day" },
   TEAM_PRACTICE:       { intensity: IntensityLevel.MODERATE, baseLoadScore: 5, title: "Team practice" },
 };
+
+function chooseStrengthSupportSession(
+  profile: ClimbingProfile,
+  rankedWeaknesses: RankedWeakness[],
+  compCtx: CompContext,
+): SessionType {
+  if (compCtx.phase === "taper" || compCtx.phase === "peak") {
+    return SessionType.MOBILITY;
+  }
+
+  const topCategories = rankedWeaknesses.slice(0, 3).map((weakness) => weakness.category);
+  if (topCategories.includes("max_strength") || topCategories.includes("recruitment_power")) return SessionType.CORE;
+  if (topCategories.includes("mobility")) return SessionType.MOBILITY;
+  if (profile.primaryDiscipline === Discipline.BOULDERING) return SessionType.CORE;
+  return SessionType.ANTAGONIST_STRENGTH;
+}
+
+function ensureSupportSessions(
+  structure: SessionType[],
+  profile: ClimbingProfile,
+  rankedWeaknesses: RankedWeakness[],
+  compCtx: CompContext,
+) {
+  const hasStrengthSession = structure.some(
+    (type) => type === SessionType.ANTAGONIST_STRENGTH || type === SessionType.CORE,
+  );
+  const hasActiveRecovery = structure.includes(SessionType.ACTIVE_RECOVERY);
+
+  if (!hasStrengthSession) {
+    const replacement = chooseStrengthSupportSession(profile, rankedWeaknesses, compCtx);
+    const targetIndex = structure.findIndex((type, index) =>
+      index !== 5 &&
+      type !== SessionType.TEAM_PRACTICE &&
+      type !== SessionType.COMPETITION &&
+      type !== SessionType.FULL_REST,
+    );
+    if (targetIndex !== -1) {
+      structure[targetIndex] = replacement;
+    }
+  }
+
+  if (!hasActiveRecovery) {
+    const targetIndex = [2, 6, 0, 4].find((index) => {
+      const type = structure[index];
+      return type !== SessionType.TEAM_PRACTICE && type !== SessionType.COMPETITION && type !== SessionType.FULL_REST;
+    });
+    if (targetIndex !== undefined) {
+      structure[targetIndex] = SessionType.ACTIVE_RECOVERY;
+    }
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Session builder
@@ -403,15 +454,15 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
     SessionType.TEAM_PRACTICE,                                  // Tue: practice
     stressAdjustment >= 3
       ? SessionType.ACTIVE_RECOVERY
-      : blendedSessions[1] ?? SessionType.ANTAGONIST_STRENGTH, // Wed: secondary weakness or recovery
+      : chooseStrengthSupportSession(profile, rankedWeaknesses, compCtx), // Wed: support strength or recovery
     SessionType.TEAM_PRACTICE,                                  // Thu: practice
     SessionType.FULL_REST,                                      // Fri: rest
     profile.primaryDiscipline === Discipline.LEAD
       ? SessionType.LEAD_ENDURANCE
       : SessionType.LIMIT_BOULDERING,                          // Sat: discipline-specific
     stressAdjustment >= 2
-      ? SessionType.MOBILITY
-      : blendedSessions[2] ?? SessionType.CORE,                // Sun: tertiary or mobility
+      ? SessionType.ACTIVE_RECOVERY
+      : blendedSessions[2] ?? SessionType.MOBILITY,            // Sun: tertiary support or recovery
   ];
 
   baseStructure[preferredRestDay] = SessionType.FULL_REST;
@@ -485,6 +536,8 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
     baseStructure[6] = SessionType.MOBILITY;
   }
 
+  ensureSupportSessions(baseStructure, profile, rankedWeaknesses, compCtx);
+
   // ── Build sessions ─────────────────────────────────────────────────────────
   const sessions = baseStructure.map((sessionType, dayIndex) => {
     const dayLabel = dayNames[dayIndex];
@@ -503,7 +556,13 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
         return "A protected rest day prevents stacking fatigue and keeps quality high for the next hard session.";
       }
       if (sessionType === SessionType.ACTIVE_RECOVERY) {
-        return `Readiness signals (stress: ${stressAdjustment}, recovery: ${recovery.band}) suggest reducing load while keeping movement.`;
+        return `Readiness signals (stress: ${stressAdjustment}, recovery: ${recovery.band}) suggest a true reset day with easy movement, circulation, and mobility instead of more climbing strain.`;
+      }
+      if (sessionType === SessionType.ANTAGONIST_STRENGTH || sessionType === SessionType.CORE) {
+        return "A dedicated strength support session builds durability, posture, and body tension without stealing quality from your main climbing days.";
+      }
+      if (sessionType === SessionType.MOBILITY) {
+        return "This slot keeps recovery moving while still addressing range of motion and tissue quality that support the harder sessions.";
       }
       if (sessionType === SessionType.COMPETITION) {
         return `Peak day preserved for ${compCtx.event?.name ?? "the upcoming competition"}.`;

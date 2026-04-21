@@ -84,14 +84,26 @@ export function buildSessionCoachSummary(input: SessionCoachInput): SessionCoach
         pacing: "You should be able to talk normally and keep the forearms calm.",
         win: "You finish feeling better warmed up, not cooked.",
       };
-    case SessionType.MOBILITY:
     case SessionType.ACTIVE_RECOVERY:
-    case SessionType.FULL_REST:
       return {
         goal: "Recover well enough that the next hard day can actually be high quality.",
         effort: baseEffort,
         pacing: "Keep it genuinely light. Do not sneak in extra work.",
         win: "You leave feeling looser, fresher, and less beat up.",
+      };
+    case SessionType.MOBILITY:
+      return {
+        goal: "Restore usable range of motion and loosen the areas that are limiting climbing quality.",
+        effort: baseEffort,
+        pacing: "Move slowly enough to actually improve positions, not just rush through a checklist.",
+        win: "You leave moving better and feeling less blocked in key climbing positions.",
+      };
+    case SessionType.FULL_REST:
+      return {
+        goal: "Absorb the work you have already done.",
+        effort: baseEffort,
+        pacing: "Do less than you think you want to do.",
+        win: "You feel more ready for tomorrow instead of proud that you did extra.",
       };
     case SessionType.TEAM_PRACTICE:
       return {
@@ -101,9 +113,15 @@ export function buildSessionCoachSummary(input: SessionCoachInput): SessionCoach
         win: "You get high-quality tries without adding unnecessary extra volume after.",
       };
     case SessionType.ANTAGONIST_STRENGTH:
+      return {
+        goal: "Build strength and durability that supports climbing instead of competing with it.",
+        effort: baseEffort,
+        pacing: "Lift cleanly, leave a little in reserve, and avoid turning this into a fatigue contest.",
+        win: "You finish feeling stronger and more stable, not wrecked for your next climbing day.",
+      };
     case SessionType.CORE:
       return {
-        goal: "Support climbing performance and durability.",
+        goal: "Build the body tension and trunk control that hold harder positions together.",
         effort: baseEffort,
         pacing: "Keep reps clean and leave a little in reserve.",
         win: "You finish feeling worked but not trashed for the next climbing day.",
@@ -124,4 +142,3 @@ export function buildSessionCoachSummary(input: SessionCoachInput): SessionCoach
       };
   }
 }
-
