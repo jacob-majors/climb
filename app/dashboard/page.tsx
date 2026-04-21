@@ -35,6 +35,7 @@ import {
   strainLabel,
   tryHardLabel,
 } from "@/lib/session-metrics";
+import { ensureFreshTrainingPlan } from "@/lib/plan-sync";
 
 type AthleteRecord = Awaited<ReturnType<typeof getActiveAthlete>>;
 type Athlete = NonNullable<AthleteRecord>;
@@ -56,6 +57,13 @@ type UpcomingItem = {
   notes?: string;
 };
 
+type TodayItem = {
+  title: string;
+  type: CalendarEntryType;
+  time?: string;
+  notes?: string;
+};
+
 function daysToCompetition(date: Date) {
   return differenceInCalendarDays(startOfDay(date), startOfDay(new Date()));
 }
@@ -65,6 +73,66 @@ function countdownLabel(days: number) {
   if (days === 0) return "Competition starts today";
   if (days === 1) return "1 day to go";
   return `${days} days to go`;
+}
+
+function getNextCompetition(competitions: Athlete["competitionEvents"]) {
+  const today = startOfDay(new Date());
+
+  return competitions.find((competition) => differenceInCalendarDays(startOfDay(competition.eventDate), today) >= 0) ?? null;
+}
+
+function getLocalTodayInfo(timeZone = "America/Los_Angeles") {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "long",
+  }).formatToParts(new Date());
+
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    isoDate: `${byType.year}-${byType.month}-${byType.day}`,
+    weekday: byType.weekday,
+  };
+}
+
+function buildTodayItems(schedule: NonNullable<Athlete["scheduleConstraint"]>) {
+  const today = getLocalTodayInfo();
+
+  return parseWeeklyCalendar(schedule.weeklyCalendar)
+    .filter((entry) => {
+      if (entry.type === "competition") return false;
+      if (entry.date) return entry.date === today.isoDate;
+      return entry.day === today.weekday;
+    })
+    .sort((a, b) => (inferEventStartMinutes(a.time) ?? 24 * 60) - (inferEventStartMinutes(b.time) ?? 24 * 60))
+    .map((entry) => ({
+      title: entry.title,
+      type: entry.type,
+      time: entry.time,
+      notes: entry.notes,
+    }));
+}
+
+function humanizeTimeRange(time?: string | null) {
+  if (!time) return null;
+  return time.replace(/\s*[–-]\s*/g, " to ");
+}
+
+function todayHeadline(items: TodayItem[], sessionEntry: ReturnType<typeof getUpcomingSession>) {
+  const first = items[0];
+  if (first) {
+    const timeLabel = humanizeTimeRange(first.time);
+    return `${first.title}${timeLabel ? ` from ${timeLabel}` : ""}`;
+  }
+
+  if (sessionEntry) {
+    return `${sessionEntry.session.title}${sessionEntry.windowLabel ? ` at ${sessionEntry.windowLabel}` : ""}`;
+  }
+
+  return "Nothing scheduled today";
 }
 
 function competitionDateLabel(competition: Athlete["competitionEvents"][number]) {
@@ -369,11 +437,21 @@ export default async function DashboardPage() {
     redirect("/profile");
   }
 
+  if (!selectCurrentWeekPlan(athlete.trainingPlans)) {
+    await ensureFreshTrainingPlan(userId);
+    athlete = await getActiveAthlete(userId);
+  }
+
+  if (!athlete || !athlete.profile || !athlete.scheduleConstraint) {
+    redirect("/profile");
+  }
+
   const schedule = athlete.scheduleConstraint;
   const recovery = getRecoveryBand(schedule);
   const currentPlan = selectCurrentWeekPlan(athlete.trainingPlans);
   const sessionEntry = getUpcomingSession(currentPlan, schedule.trainingAvailability);
-  const nextComp = athlete.competitionEvents[0] ?? null;
+  const todayItems = buildTodayItems(schedule);
+  const nextComp = getNextCompetition(athlete.competitionEvents);
   const daysUntilComp = nextComp ? daysToCompetition(nextComp.eventDate) : null;
   const focusAreas = parseFocusAreas(currentPlan?.keyFocusAreas);
   const adherenceSummary = buildAdherenceSummary(currentPlan, schedule.trainingAvailability);
@@ -534,69 +612,106 @@ export default async function DashboardPage() {
         </form>
       </Card>
 
-      {/* ── Hero: Comp countdown + peak forecast + recovery ── */}
-      <Card className="overflow-hidden p-0">
-        {nextComp ? (
-          <div className="rounded-[28px] bg-ink px-6 pt-8 pb-6 text-chalk">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-chalk/55">{nextComp.name}</p>
-            {nextComp.location ? (
-              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-chalk/45">
-                <MapPin className="h-3 w-3" />
-                {nextComp.location}
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <Card className="space-y-4">
+          <SectionHeading
+            eyebrow="Today"
+            title={todayHeadline(todayItems, sessionEntry)}
+            description={todayItems.length ? "What is on the calendar today." : sessionEntry ? "No calendar event is saved for today, so the next planned session is shown." : "Nothing is on the calendar today."}
+          />
+
+          {todayItems.length ? (
+            <div className="space-y-3">
+              {todayItems.map((item, index) => {
+                const appearance = upcomingAppearance(item.type);
+
+                return (
+                  <div key={`${item.title}-${index}`} className="flex items-start gap-3 rounded-2xl border border-ink/10 bg-mist/40 p-4">
+                    <span className={`rounded-2xl p-2.5 ${appearance.iconClass}`}>
+                      <appearance.Icon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-ink">{item.title}</p>
+                      {item.time ? <p className="mt-1 text-sm text-ink/65">{humanizeTimeRange(item.time)}</p> : null}
+                      {item.notes ? <p className="mt-2 text-xs leading-5 text-ink/55">{item.notes}</p> : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : sessionEntry ? (
+            <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Next session</p>
+              <p className="mt-2 text-sm font-semibold text-ink">{sessionEntry.session.title}</p>
+              <p className="mt-1 text-sm text-ink/65">
+                {sessionEntry.session.dayLabel}
+                {sessionEntry.windowLabel ? ` • ${sessionEntry.windowLabel}` : ""}
               </p>
-            ) : null}
-            <div className="mt-5 flex items-end gap-4">
-              <div>
-                <p className="text-[4.5rem] font-black leading-none tabular-nums text-chalk">{daysUntilComp ?? "–"}</p>
-                <p className="mt-1 text-sm font-medium text-chalk/60">{daysUntilComp !== null ? countdownLabel(daysUntilComp) : "No comp date"}</p>
-              </div>
-              <div className="mb-1 text-chalk/35 text-sm font-medium">days</div>
             </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-ink/10 p-4 text-sm text-ink/55">Nothing is scheduled for today.</div>
+          )}
+        </Card>
 
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {/* Recovery band */}
-              <div className="rounded-2xl bg-white/8 px-3 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Recovery</p>
-                <p className={`mt-1.5 text-base font-bold ${recovery.band === "green" ? "text-emerald-400" : recovery.band === "yellow" ? "text-amber-400" : "text-red-400"}`}>
-                  {recovery.band === "green" ? "Green" : recovery.band === "yellow" ? "Yellow" : "Red"}
+        <Card className="overflow-hidden p-0">
+          {nextComp ? (
+            <div className="rounded-[28px] bg-ink px-6 pt-8 pb-6 text-chalk">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-chalk/55">Countdown</p>
+              <p className="mt-2 text-2xl font-black text-chalk">{nextComp.name}</p>
+              <p className="mt-1 text-sm text-chalk/60">{competitionDateLabel(nextComp)}</p>
+              {nextComp.location ? (
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-chalk/45">
+                  <MapPin className="h-3 w-3" />
+                  {nextComp.location}
                 </p>
-                <p className="text-xs text-chalk/40">{recovery.score}/100</p>
+              ) : null}
+              <div className="mt-6 flex items-end gap-4">
+                <div>
+                  <p className="text-[4.5rem] font-black leading-none tabular-nums text-chalk">{daysUntilComp ?? "–"}</p>
+                  <p className="mt-1 text-sm font-medium text-chalk/60">{daysUntilComp !== null ? countdownLabel(daysUntilComp) : "No comp date"}</p>
+                </div>
+                <div className="mb-1 text-chalk/35 text-sm font-medium">days</div>
               </div>
 
-              {/* Peak forecast */}
-              <div className="rounded-2xl bg-white/8 px-3 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Peak</p>
-                <p className="mt-1.5 text-base font-bold text-chalk">{format(peakForecast.predictedPeakDate, "MMM d")}</p>
-                <p className="text-xs text-chalk/40">{peakForecast.confidence}% conf.</p>
+              <div className="mt-5 grid grid-cols-3 gap-2">
+                <div className="rounded-2xl bg-white/8 px-3 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Recovery</p>
+                  <p className={`mt-1.5 text-base font-bold ${recovery.band === "green" ? "text-emerald-400" : recovery.band === "yellow" ? "text-amber-400" : "text-red-400"}`}>
+                    {recovery.band === "green" ? "Green" : recovery.band === "yellow" ? "Yellow" : "Red"}
+                  </p>
+                  <p className="text-xs text-chalk/40">{recovery.score}/100</p>
+                </div>
+                <div className="rounded-2xl bg-white/8 px-3 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Peak</p>
+                  <p className="mt-1.5 text-base font-bold text-chalk">{format(peakForecast.predictedPeakDate, "MMM d")}</p>
+                  <p className="text-xs text-chalk/40">{peakForecast.confidence}% conf.</p>
+                </div>
+                <div className="rounded-2xl bg-white/8 px-3 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Form</p>
+                  <p className="mt-1.5 text-base font-bold text-chalk">{peakForecast.peakScore}/100</p>
+                  <p className="text-xs text-chalk/40">peak form</p>
+                </div>
               </div>
 
-              {/* Peak score */}
-              <div className="rounded-2xl bg-white/8 px-3 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-chalk/50">Form</p>
-                <p className="mt-1.5 text-base font-bold text-chalk">{peakForecast.peakScore}/100</p>
-                <p className="text-xs text-chalk/40">peak form</p>
-              </div>
+              <p className="mt-4 text-xs leading-5 text-chalk/50">{peakForecast.rationale}</p>
             </div>
+          ) : (
+            <div className="px-6 py-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-pine/60">No competition saved</p>
+              <p className="mt-2 text-2xl font-black text-ink">Add your next comp</p>
+              <p className="mt-1 text-sm text-ink/55">Set a competition date to unlock the countdown, taper forecast, and peak alignment.</p>
+            </div>
+          )}
 
-            {/* Peak alignment note */}
-            <p className="mt-4 text-xs leading-5 text-chalk/50">{peakForecast.rationale}</p>
+          <div className="flex items-center gap-3 px-6 py-4">
+            <span className={`h-2.5 w-2.5 rounded-full ${recovery.band === "green" ? "bg-emerald-500" : recovery.band === "yellow" ? "bg-amber-400" : "bg-red-500"}`} />
+            <div>
+              <p className="text-sm font-semibold text-ink">{recoveryLabel(recovery.band)}</p>
+              <p className="text-xs text-ink/50">{readinessCue(recovery.band)}</p>
+            </div>
           </div>
-        ) : (
-          <div className="px-6 py-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-pine/60">No competition saved</p>
-            <p className="mt-2 text-2xl font-black text-ink">Add your next comp</p>
-            <p className="mt-1 text-sm text-ink/55">Set a competition date to unlock the countdown, taper forecast, and peak alignment.</p>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 px-6 py-4">
-          <span className={`h-2.5 w-2.5 rounded-full ${recovery.band === "green" ? "bg-emerald-500" : recovery.band === "yellow" ? "bg-amber-400" : "bg-red-500"}`} />
-          <div>
-            <p className="text-sm font-semibold text-ink">{recoveryLabel(recovery.band)}</p>
-            <p className="text-xs text-ink/50">{readinessCue(recovery.band)}</p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </section>
 
       {adherenceSummary ? (
         <Card className="space-y-5">

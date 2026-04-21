@@ -99,6 +99,59 @@ function inferType(title: string, description?: string): CalendarEntryType {
   return inferCalendarEntryType(title, description ?? "");
 }
 
+function isHolidayEvent(event: ImportedCalendarEvent) {
+  const source = `${event.title} ${event.description ?? ""}`.toLowerCase();
+  return [
+    "holiday",
+    "no school",
+    "school closed",
+    "campus closed",
+    "break",
+    "vacation",
+    "teacher workday",
+    "staff development",
+    "inservice",
+    "minimum day",
+    "early release",
+  ].some((needle) => source.includes(needle));
+}
+
+function isCompetitionImport(event: ImportedCalendarEvent) {
+  const source = `${event.title} ${event.description ?? ""}`.toLowerCase();
+  const excludedTerms = [
+    "practice",
+    "team practice",
+    "workshop",
+    "yoga",
+    "conditioning",
+    "portrait",
+    "portraits",
+    "breathwork",
+    "canceled",
+    "cancelled",
+    "training",
+    "mock comp",
+  ];
+
+  if (excludedTerms.some((needle) => source.includes(needle))) {
+    return false;
+  }
+
+  return [
+    "divisional",
+    "divisionals",
+    "regional",
+    "regionals",
+    "qualifier",
+    "qualifying",
+    "final",
+    "finals",
+    "championship",
+    "competition",
+    "nationals",
+  ].some((needle) => source.includes(needle));
+}
+
 function inferLoad(title: string, type: CalendarEntryType, durationHours: number) {
   const source = title.toLowerCase();
   if (type === "competition") return "high" as const;
@@ -118,18 +171,18 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
   const now = startOfDay(new Date());
   const windowEnd = addDays(now, 21);
 
-  const filtered = events.filter((event) => isUpcomingEvent(event) && isBefore(event.start, windowEnd));
+  const filtered = events.filter((event) => isUpcomingEvent(event) && isBefore(event.start, windowEnd) && !isHolidayEvent(event));
 
-  // Separate school events from everything else, group school by day
-  const schoolByDay = new Map<string, ImportedCalendarEvent[]>();
+  // Separate school events from everything else, group school by exact date
+  const schoolByDate = new Map<string, ImportedCalendarEvent[]>();
   const nonSchool: ImportedCalendarEvent[] = [];
 
   for (const event of filtered) {
     if (inferType(event.title, event.description) === "school") {
-      const day = toDayName(event.start);
-      const bucket = schoolByDay.get(day) ?? [];
+      const dateKey = format(event.start, "yyyy-MM-dd");
+      const bucket = schoolByDate.get(dateKey) ?? [];
       bucket.push(event);
-      schoolByDay.set(day, bucket);
+      schoolByDate.set(dateKey, bucket);
     } else {
       nonSchool.push(event);
     }
@@ -137,19 +190,19 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
 
   // Merge each day's school events into one "School" block
   const schoolEntries: CalendarEntry[] = [];
-  for (const [day, schoolEvents] of schoolByDay) {
+  for (const [dateKey, schoolEvents] of schoolByDate) {
     schoolEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
     const first = schoolEvents[0];
     const last = schoolEvents[schoolEvents.length - 1];
     const end = last.end ?? new Date(last.start.getTime() + 60 * 60 * 1000);
     const durationHours = (end.getTime() - first.start.getTime()) / (1000 * 60 * 60);
     schoolEntries.push({
-      day,
+      day: toDayName(first.start),
       title: "School",
       type: "school",
       load: inferLoad("school", "school", durationHours),
-      time: `${format(first.start, "h:mma")} – ${format(end, "h:mma")}`,
-      date: format(first.start, "yyyy-MM-dd"),
+      time: `${format(first.start, "h:mm a")} - ${format(end, "h:mm a")}`,
+      date: dateKey,
       source: "ics",
     });
   }
@@ -164,7 +217,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
       title: event.title,
       type,
       load: inferLoad(event.title, type, durationHours),
-      time: format(event.start, "h:mma"),
+      time: event.end ? `${format(event.start, "h:mm a")} - ${format(event.end, "h:mm a")}` : format(event.start, "h:mm a"),
       date: format(event.start, "yyyy-MM-dd"),
       notes: [event.location, event.description].filter(Boolean).join(" • ") || undefined,
       source: "ics",
@@ -177,7 +230,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
 export function importedCompetitionEvents(events: ImportedCalendarEvent[]) {
   return events
     .filter((event) => isUpcomingEvent(event))
-    .filter((event) => inferType(event.title, event.description) === "competition")
+    .filter((event) => isCompetitionImport(event))
     .map((event) => ({
       name: event.title,
       eventDate: event.start,

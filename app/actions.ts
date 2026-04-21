@@ -19,6 +19,7 @@ import {
 } from "@/lib/training-availability";
 import { generateTrainingPlan } from "@/lib/training-engine";
 import { getOrCreateDbUser } from "@/lib/auth";
+import { ensureFreshTrainingPlan } from "@/lib/plan-sync";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) || "").trim();
@@ -134,6 +135,8 @@ async function persistImportedCalendarData({
       });
     }
   }
+
+  await ensureFreshTrainingPlan(userId);
 }
 
 export async function upsertProfileAction(formData: FormData) {
@@ -178,9 +181,12 @@ export async function upsertProfileAction(formData: FormData) {
     },
   });
 
+  await ensureFreshTrainingPlan(userId);
+
   revalidatePath("/");
   revalidatePath("/dashboard");
   revalidatePath("/profile");
+  revalidatePath("/plans");
   redirect("/dashboard");
 }
 
@@ -299,8 +305,11 @@ export async function saveRouteEntryAction(formData: FormData) {
     },
   });
 
+  await ensureFreshTrainingPlan(userId);
+
   revalidatePath("/routes");
   revalidatePath("/dashboard");
+  revalidatePath("/plans");
   redirect("/routes");
 }
 
@@ -412,9 +421,12 @@ export async function saveScheduleAction(formData: FormData) {
     }
   }
 
+  await ensureFreshTrainingPlan(userId);
+
   revalidatePath("/");
   revalidatePath("/schedule");
   revalidatePath("/dashboard");
+  revalidatePath("/plans");
   redirect("/schedule");
 }
 
@@ -733,7 +745,10 @@ export async function updateQuickCheckInAction(formData: FormData) {
     },
   });
 
+  await ensureFreshTrainingPlan(userId);
+
   revalidatePath("/dashboard");
+  revalidatePath("/plans");
   redirect("/dashboard");
 }
 
@@ -752,8 +767,10 @@ export async function addCompetitionAction(formData: FormData) {
       notes: text(formData, "notes") || null,
     },
   });
+  await ensureFreshTrainingPlan(userId);
   revalidatePath("/dashboard");
   revalidatePath("/schedule");
+  revalidatePath("/plans");
   redirect("/dashboard");
 }
 

@@ -11,6 +11,7 @@ import { getOrCreateDbUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { toDateInputValue } from "@/lib/format";
 import { parseTrainingAvailability } from "@/lib/training-availability";
+import { differenceInCalendarDays, startOfDay } from "date-fns";
 
 type SchedulePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -59,6 +60,11 @@ function availabilityValue(raw: string | null | undefined, day: string, fallback
   catch { return fallback; }
 }
 
+function getNextCompetition<T extends { eventDate: Date }>(competitions: T[]) {
+  const today = startOfDay(new Date());
+  return competitions.find((competition) => differenceInCalendarDays(startOfDay(competition.eventDate), today) >= 0) ?? null;
+}
+
 export default async function SchedulePage({ searchParams }: SchedulePageProps) {
   const userId = await getOrCreateDbUser();
   if (!userId) redirect("/sign-in");
@@ -91,90 +97,106 @@ export default async function SchedulePage({ searchParams }: SchedulePageProps) 
     return acc;
   }, {});
 
-  const competitions = athlete.competitionEvents.map((c) => ({
-    id: c.id,
-    name: c.name,
-    date: toDateInputValue(c.eventDate),
-    location: c.location ?? "",
-    discipline: c.discipline,
-    notes: c.notes ?? "",
-  }));
+  const nextCompetition = getNextCompetition(athlete.competitionEvents);
+  const competitions = nextCompetition
+    ? [{
+        id: nextCompetition.id,
+        name: nextCompetition.name,
+        date: toDateInputValue(nextCompetition.eventDate),
+        location: nextCompetition.location ?? "",
+        discipline: nextCompetition.discipline,
+        notes: nextCompetition.notes ?? "",
+      }]
+    : [];
 
   const hasCalendar = Boolean(schedule?.calendarSourceUrl);
   const linkCount = schedule?.calendarSourceUrl?.split("\n").filter(Boolean).length ?? 0;
 
   return (
     <div className="space-y-4">
-      {statusMessage ? (
-        <Card className={statusMessage.tone === "green" ? "border-moss/25 bg-moss/10" : statusMessage.tone === "clay" ? "border-clay/20 bg-clay/5" : "border-amber-200 bg-amber-50/70"}>
-          <p className="text-sm font-semibold text-ink">{statusMessage.title}</p>
-          <p className="mt-2 text-sm leading-6 text-ink/70">{statusMessage.description}</p>
-        </Card>
-      ) : null}
-
-      <div className="flex flex-col gap-3 rounded-[24px] border border-ink/10 bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-ink">Google Calendar</p>
-          <p className="text-xs text-ink/55">
-            {googleCalendarConnected
-              ? "Google is linked. Pull your events straight into the schedule."
-              : "Connect Google once, grant read-only calendar access, then sync your week."}
-          </p>
+          <p className="text-base font-semibold text-ink">Schedule</p>
+          <p className="text-sm text-ink/55">Your week, your competition, and your calendar sync all in one place.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/account?intent=google-calendar"
-            className="inline-flex items-center rounded-full border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-pine"
-          >
-            {googleCalendarConnected ? "Manage Google access" : "Connect Google"}
-          </Link>
-          {googleCalendarConnected ? (
-            <form action={syncGoogleCalendarAction}>
-              <SubmitButton label="Pull from Google" pendingLabel="Pulling…" />
-            </form>
-          ) : null}
-        </div>
-      </div>
+        <details open={Boolean(statusMessage)} className="group w-full max-w-md rounded-[24px] border border-ink/10 bg-white/80 sm:w-auto">
+          <summary className="flex cursor-pointer list-none items-center justify-center gap-2 rounded-[24px] px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-pine hover:text-pine">
+            Edit
+            <span className="text-[10px] text-ink/40 transition-transform group-open:rotate-180">▼</span>
+          </summary>
 
-      {/* ── Calendar sync bar ──────────────────────────────── */}
-      <div className="flex flex-col gap-3 rounded-[24px] border border-ink/10 bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between">
-        {hasCalendar ? (
-          <>
-            <div>
-              <p className="text-sm font-semibold text-ink">Calendar connected</p>
-              <p className="text-xs text-ink/55">
-                {schedule?.importedCalendarAt
-                  ? `Last synced ${new Date(schedule.importedCalendarAt).toLocaleString()}`
-                  : "Not yet synced"}
-                {" · "}{linkCount} link{linkCount !== 1 ? "s" : ""}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <form action={refreshCalendarAction}>
-                <input type="hidden" name="userId" value={athlete.id} />
-                <SubmitButton label="Sync now" pendingLabel="Syncing…" />
-              </form>
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-ink/60">No calendar connected yet — add an ICS link below to auto-import your schedule.</p>
-        )}
-      </div>
+          <div className="space-y-4 border-t border-ink/8 p-4">
+            {statusMessage ? (
+              <Card className={statusMessage.tone === "green" ? "border-moss/25 bg-moss/10" : statusMessage.tone === "clay" ? "border-clay/20 bg-clay/5" : "border-amber-200 bg-amber-50/70"}>
+                <p className="text-sm font-semibold text-ink">{statusMessage.title}</p>
+                <p className="mt-2 text-sm leading-6 text-ink/70">{statusMessage.description}</p>
+              </Card>
+            ) : null}
 
-      {/* ── ICS connect / update ───────────────────────────── */}
-      <details className="group rounded-[24px] border border-ink/10 bg-white/80">
-        <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink list-none">
-          {hasCalendar ? "Update calendar links" : "Connect a calendar"}
-          <span className="text-ink/40 text-xs group-open:rotate-180 transition-transform">▼</span>
-        </summary>
-        <div className="border-t border-ink/8 px-4 pb-4 pt-3">
-          <CalendarLinkManager
-            userId={athlete.id}
-            initialUrls={schedule?.calendarSourceUrl?.split("\n").filter(Boolean) ?? []}
-            hasCalendar={hasCalendar}
-          />
-        </div>
-      </details>
+            <div className="flex flex-col gap-3 rounded-[24px] border border-ink/10 bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-ink">Google Calendar</p>
+                <p className="text-xs text-ink/55">
+                  {googleCalendarConnected
+                    ? "Google is linked. Pull your events straight into the schedule."
+                    : "Connect Google once, grant read-only calendar access, then sync your week."}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/account?intent=google-calendar"
+                  className="inline-flex items-center rounded-full border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-pine"
+                >
+                  {googleCalendarConnected ? "Manage Google access" : "Connect Google"}
+                </Link>
+                {googleCalendarConnected ? (
+                  <form action={syncGoogleCalendarAction}>
+                    <SubmitButton label="Pull from Google" pendingLabel="Pulling…" />
+                  </form>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-[24px] border border-ink/10 bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+              {hasCalendar ? (
+                <>
+                  <div>
+                    <p className="text-sm font-semibold text-ink">Calendar connected</p>
+                    <p className="text-xs text-ink/55">
+                      {schedule?.importedCalendarAt
+                        ? `Last synced ${new Date(schedule.importedCalendarAt).toLocaleString()}`
+                        : "Not yet synced"}
+                      {" · "}{linkCount} link{linkCount !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <form action={refreshCalendarAction}>
+                      <input type="hidden" name="userId" value={athlete.id} />
+                      <SubmitButton label="Sync now" pendingLabel="Syncing…" />
+                    </form>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-ink/60">No calendar connected yet — add an ICS link below to auto-import your schedule.</p>
+              )}
+            </div>
+
+            <details className="group rounded-[24px] border border-ink/10 bg-white/80">
+              <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink list-none">
+                {hasCalendar ? "Update calendar links" : "Connect a calendar"}
+                <span className="text-ink/40 text-xs group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="border-t border-ink/8 px-4 pb-4 pt-3">
+                <CalendarLinkManager
+                  userId={athlete.id}
+                  initialUrls={schedule?.calendarSourceUrl?.split("\n").filter(Boolean) ?? []}
+                  hasCalendar={hasCalendar}
+                />
+              </div>
+            </details>
+          </div>
+        </details>
+      </div>
 
       {/* ── Main schedule editor (handles its own form in edit mode) ── */}
       <ScheduleEditor
