@@ -55,6 +55,15 @@ export async function getSessionsSharedRoutes() {
   });
 }
 
+export async function getRouteHistory(userId: string) {
+  noStore();
+  return prisma.routeEntry.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: { grade: true, gradeScale: true, createdAt: true },
+  });
+}
+
 export async function getPlan(planId: string) {
   noStore();
   return prisma.trainingPlan.findUnique({

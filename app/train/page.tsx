@@ -48,8 +48,46 @@ export default async function TrainPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      {/* Rest day — show when no session or full rest */}
+      {(!sessionEntry || sessionEntry.session.sessionType === "FULL_REST" || sessionEntry.session.sessionType === "ACTIVE_RECOVERY") && (
+        <div className="rounded-[28px] border border-ink/10 bg-white/80 p-6 space-y-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-600">
+              {sessionEntry?.session.sessionType === "ACTIVE_RECOVERY" ? "Active recovery day" : "Rest day"}
+            </p>
+            <p className="mt-1 text-xl font-bold text-ink">
+              {sessionEntry?.session.sessionType === "ACTIVE_RECOVERY" ? "Move, don't strain" : "Full rest today"}
+            </p>
+            <p className="mt-1 text-sm text-ink/55">
+              {sessionEntry?.session.sessionType === "ACTIVE_RECOVERY"
+                ? "Keep movement light and blood flowing — no intensity."
+                : "Rest is where gains happen. Protect it."}
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(sessionEntry?.session.sessionType === "ACTIVE_RECOVERY" ? [
+              { title: "10 min walk or easy bike", detail: "Get blood moving without loading anything." },
+              { title: "Hip flexor stretch", detail: "90/90 position, 2 min each side. Climbing loads them hard." },
+              { title: "Shoulder circles & T-spine", detail: "Slow arm circles, then thoracic rotations on the floor." },
+              { title: "Hang passive (no pulling)", detail: "30-sec dead hang at very low load — decompress the spine." },
+            ] : [
+              { title: "Sleep in if you can", detail: "Extra sleep is the best adaptation tool you have." },
+              { title: "Eat enough", detail: "Don't undereat on rest days — your body is repairing tissue." },
+              { title: "Stay off your feet if skin is raw", detail: "Skin heals fastest when it's dry and not getting rubbed." },
+              { title: "Mental prep", detail: "Visualize a project sequence or review your last session notes." },
+            ]).map((item) => (
+              <div key={item.title} className="rounded-2xl border border-ink/8 bg-mist/40 px-4 py-3">
+                <p className="text-sm font-semibold text-ink">{item.title}</p>
+                <p className="text-xs text-ink/50 mt-0.5 leading-4">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Session hero */}
-      {sessionEntry ? (
+      {sessionEntry && sessionEntry.session.sessionType !== "FULL_REST" && sessionEntry.session.sessionType !== "ACTIVE_RECOVERY" ? (
         <div className="rounded-[28px] bg-[linear-gradient(135deg,#1d3a33_0%,#274E45_100%)] p-6 text-chalk shadow-[0_20px_60px_rgba(16,36,32,0.22)]">
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-chalk/50">
             {sessionEntry.session.dayLabel}
@@ -77,7 +115,7 @@ export default async function TrainPage() {
             Start session
           </Link>
         </div>
-      ) : (
+      ) : !sessionEntry ? (
         <div className="rounded-[28px] border border-ink/10 bg-white/80 p-6">
           <p className="text-sm font-semibold text-ink">No upcoming session</p>
           <p className="mt-1 text-sm text-ink/55">Generate a plan from the dashboard to see your next block here.</p>
@@ -85,10 +123,10 @@ export default async function TrainPage() {
             Go to dashboard <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
-      )}
+      ) : null}
 
       {/* Main work + Warmup/Cooldown */}
-      {sessionEntry && (
+      {sessionEntry && sessionEntry.session.sessionType !== "FULL_REST" && sessionEntry.session.sessionType !== "ACTIVE_RECOVERY" && (
         <Card className="space-y-4">
           {sessionEntry.session.mainWork && (
             <div className="rounded-[24px] bg-mist p-4">

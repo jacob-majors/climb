@@ -687,7 +687,7 @@ export default async function DashboardPage() {
   }
 
   if (!athlete || !athlete.profile || !athlete.scheduleConstraint) {
-    redirect("/profile");
+    redirect("/onboard");
   }
 
   if (!selectCurrentWeekPlan(athlete.trainingPlans)) {
@@ -696,7 +696,7 @@ export default async function DashboardPage() {
   }
 
   if (!athlete || !athlete.profile || !athlete.scheduleConstraint) {
-    redirect("/profile");
+    redirect("/onboard");
   }
 
   const schedule = athlete.scheduleConstraint;
@@ -823,6 +823,53 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
+
+      {/* ── Session hero — always first ── */}
+      {sessionEntry ? (
+        <div className="rounded-[28px] bg-[linear-gradient(135deg,#1d3a33_0%,#274E45_100%)] p-6 text-chalk shadow-[0_20px_60px_rgba(16,36,32,0.22)]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-chalk/50">
+            {sessionEntry.session.dayLabel}
+            {sessionEntry.windowLabel ? ` · ${sessionEntry.windowLabel}` : ""}
+          </p>
+          <p className="mt-2 text-2xl font-bold leading-tight">{sessionEntry.session.title}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full bg-chalk/10 px-3 py-1 text-xs font-semibold text-chalk/80">
+              {formatSessionType(sessionEntry.session.sessionType)}
+            </span>
+            <span className="rounded-full bg-chalk/10 px-3 py-1 text-xs font-semibold text-chalk/80">
+              {formatSessionDuration(sessionEntry.session.durationMinutes)}
+            </span>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${intensityClass(sessionEntry.session.intensity)}`}>
+              {intensityLabel(sessionEntry.session.intensity)}
+            </span>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${recoveryClass(recovery.band)}`}>
+              {recoveryLabel(recovery.band)}
+            </span>
+          </div>
+          <div className="mt-5 flex gap-3">
+            <Link
+              href={`/sessions/${sessionEntry.session.id}`}
+              className="inline-flex items-center gap-2 rounded-full bg-chalk px-5 py-2.5 text-sm font-bold text-pine transition hover:bg-chalk/90"
+            >
+              <Play className="h-4 w-4" />
+              Start session
+            </Link>
+            <Link
+              href="/train"
+              className="inline-flex items-center rounded-full border border-chalk/20 px-5 py-2.5 text-sm font-semibold text-chalk/80 transition hover:border-chalk/40"
+            >
+              View plan
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-[28px] border border-ink/10 bg-white/80 p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/40">Today</p>
+          <p className="mt-1 text-xl font-bold text-ink">Rest day</p>
+          <p className="mt-1 text-sm text-ink/55">No session scheduled — recovery is part of the plan.</p>
+        </div>
+      )}
+
       <Card className="lg:hidden">
         <details>
           <summary className="list-none cursor-pointer">

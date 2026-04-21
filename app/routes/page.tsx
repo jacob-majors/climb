@@ -1,10 +1,11 @@
-import { getActiveAthlete, getSessionsSharedRoutes } from "@/lib/data";
+import { getActiveAthlete, getSessionsSharedRoutes, getRouteHistory } from "@/lib/data";
 import { getOrCreateDbUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/section-heading";
 import { RouteWizard } from "@/components/route-wizard";
 import { RouteEntryList } from "@/components/route-entry-list";
+import { GradeChart } from "@/components/grade-chart";
 
 export default async function RouteAnalysisPage({
   searchParams,
@@ -13,8 +14,11 @@ export default async function RouteAnalysisPage({
 }) {
   const userId = await getOrCreateDbUser();
   if (!userId) redirect("/sign-in");
-  const athlete = await getActiveAthlete(userId);
-  const sessionsRoutes = await getSessionsSharedRoutes();
+  const [athlete, sessionsRoutes, routeHistory] = await Promise.all([
+    getActiveAthlete(userId),
+    getSessionsSharedRoutes(),
+    getRouteHistory(userId),
+  ]);
   const resolvedSearchParams = (await searchParams) ?? {};
   const sessionPrefill = {
     sourceSessionId: String(resolvedSearchParams.sourceSessionId || ""),
@@ -68,6 +72,16 @@ export default async function RouteAnalysisPage({
           }))}
         />
       </Card>
+
+      {routeHistory.length > 1 && (
+        <GradeChart
+          entries={routeHistory.map((e) => ({
+            grade: e.grade,
+            gradeScale: e.gradeScale as "YDS" | "V_SCALE",
+            createdAt: e.createdAt.toISOString(),
+          }))}
+        />
+      )}
 
       {athlete.routeEntries.length > 0 && (
         <div className="space-y-3">
