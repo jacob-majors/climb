@@ -381,8 +381,9 @@ export function LandingPage() {
 
   return (
     <div className="-mx-3 -mt-16 overflow-hidden px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-      <section className="relative overflow-hidden px-4 pb-20 pt-24 sm:px-8 lg:px-12">
-        <div className="absolute left-1/2 top-0 h-full w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_15%_15%,rgba(217,108,71,0.18),transparent_24%),radial-gradient(circle_at_80%_18%,rgba(39,78,69,0.18),transparent_22%),linear-gradient(180deg,#f7efe2_0%,#f3ebdd_58%,#f7f2ea_100%)]" />
+      <section className="relative overflow-visible px-4 pb-20 pt-24 sm:px-8 lg:px-12">
+        <div className="absolute left-1/2 top-0 h-full w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_15%_15%,rgba(217,108,71,0.18),transparent_24%),radial-gradient(circle_at_80%_18%,rgba(39,78,69,0.18),transparent_22%),linear-gradient(180deg,#f7efe2_0%,#f3ebdd_58%,#f5f1e8_100%)]" />
+        <div className="pointer-events-none absolute bottom-0 left-1/2 h-32 w-screen -translate-x-1/2 bg-gradient-to-b from-transparent to-[#f5f1e8]" />
         <div className="pointer-events-none absolute -left-24 top-28 h-64 w-64 rounded-full bg-clay/10 blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-pine/10 blur-3xl" />
         <LeadFallGraphic progress={progress} mode="backdrop" />
