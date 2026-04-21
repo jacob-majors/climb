@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { groq } from "@/lib/groq";
+import { getGroqClient } from "@/lib/groq";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateDbUser } from "@/lib/auth";
 
@@ -65,6 +65,13 @@ Athlete context:
 - Route redpoint: ${profile?.redpointGrade ?? "unknown"}, flash: ${profile?.flashGrade ?? "unknown"}
 - Boulder max: ${profile?.boulderMaxGrade ?? "unknown"}, flash: ${profile?.boulderFlashGrade ?? "unknown"}
 - Climbing days/week: ${profile?.climbingDaysPerWeek ?? "unknown"}${sessionBlock}`.trim();
+
+  let groq;
+  try {
+    groq = getGroqClient();
+  } catch {
+    return new Response("Coach chat is not configured yet.", { status: 503 });
+  }
 
   const stream = await groq.chat.completions.create({
     model: "llama-3.1-8b-instant",

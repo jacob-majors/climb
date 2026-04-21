@@ -1,3 +1,16 @@
 import Groq from "groq-sdk";
 
-export const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groqClient: Groq | null = null;
+
+export function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY is missing");
+  }
+
+  if (!groqClient) {
+    groqClient = new Groq({ apiKey });
+  }
+
+  return groqClient;
+}

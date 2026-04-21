@@ -58,7 +58,6 @@ function LeadFallGraphic({
   const belayerLean = normalized > 0.66 ? 1 + (normalized - 0.66) * 0.36 : 1;
   const chalkOpacity = clamp((normalized - 0.12) / 0.24);
   const blurStrength = mode === "backdrop" ? 1.4 + normalized * 1.8 : 0;
-  const telemetryPulse = 0.35 + normalized * 0.65;
 
   const ropePath = `M 276 380 C 274 328, ${260 + normalized * 24} ${286 + normalized * 18}, ${climberX + 2} ${climberY + 10}`;
   const wallDots = useMemo(
@@ -130,21 +129,8 @@ function LeadFallGraphic({
 
   return (
     <div className="sticky top-20 overflow-hidden rounded-[32px] border border-ink/10 bg-[linear-gradient(180deg,#fef6e6_0%,#f3ebda_46%,#e8dfcf_100%)] shadow-[0_28px_90px_rgba(16,20,24,0.12)]">
-      <div className="border-b border-ink/8 px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">Scroll The Fall</p>
-            <p className="mt-1 text-sm text-ink/60">A lead session turning into a catch, then a plan.</p>
-          </div>
-          <div className="rounded-full border border-pine/15 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">
-            live model
-          </div>
-        </div>
-      </div>
-
       <div className="relative h-[440px]">
         <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_50%_10%,rgba(255,255,255,0.85),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(16,20,24,0.05)_50%,transparent_100%),linear-gradient(rgba(16,20,24,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(16,20,24,0.04)_1px,transparent_1px)] bg-[length:100%_100%,100%_28px,28px_100%]" />
         <svg viewBox="0 0 400 440" className="h-full w-full">
           <defs>
             <linearGradient id="wall" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -185,49 +171,7 @@ function LeadFallGraphic({
             <circle cx={climberX - 42} cy={climberY - 4} r="3" fill="#fff" />
             <circle cx={climberX - 12} cy={climberY - 18} r="2.5" fill="#fff" />
           </g>
-
-          <text x="32" y="372" fill="#101418" opacity="0.6" fontSize="16" fontFamily="Georgia, ui-serif, serif">
-            Catch the chaos. Train the pattern.
-          </text>
         </svg>
-
-        <div className="absolute left-4 top-4 max-w-[10rem] rounded-[22px] border border-white/45 bg-white/70 px-3 py-3 backdrop-blur">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/45">Wall read</p>
-          <p className="mt-2 text-sm font-semibold text-ink">
-            {normalized < 0.42 ? "Commit high. Clip clean." : normalized < 0.78 ? "Foot cut detected." : "Catch logged. Build next week from it."}
-          </p>
-        </div>
-
-        <div className="absolute right-4 top-4 rounded-[22px] border border-white/45 bg-white/72 px-3 py-3 backdrop-blur">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/45">Signal</p>
-          <p className="mt-2 text-xl font-black text-ink">{Math.round(64 + normalized * 31)}</p>
-          <p className="text-[11px] text-ink/45">power-endurance</p>
-        </div>
-
-        <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between rounded-[24px] border border-white/40 bg-white/65 px-4 py-3 backdrop-blur">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-pine">Live Story</p>
-            <p className="mt-1 text-sm text-ink/70">
-              {normalized < 0.28
-                ? "Climb with confidence."
-                : normalized < 0.65
-                ? "Miss the clip. Take the whip."
-                : normalized < 0.88
-                ? "Get caught. Log the session."
-                : "Turn the catch into next week’s plan."}
-            </p>
-          </div>
-          <div className="h-2 w-28 overflow-hidden rounded-full bg-ink/10">
-            <div className="h-full rounded-full bg-clay transition-all duration-150" style={{ width: `${normalized * 100}%` }} />
-          </div>
-        </div>
-
-        <div className="absolute bottom-24 right-4 rounded-full border border-clay/15 bg-white/72 px-3 py-1.5 backdrop-blur">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-clay" style={{ opacity: telemetryPulse }} />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-clay">telemetry active</span>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -568,109 +512,89 @@ export function LandingPage() {
         <LeadFallGraphic progress={progress} mode="backdrop" />
 
         <div className="relative mx-auto max-w-7xl">
-          <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_440px]">
-            <div className="relative z-10 max-w-3xl pt-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-pine shadow-sm backdrop-blur">
-                <Sparkles className="h-3.5 w-3.5" />
-                Climbing Training App For Comp Climbers
-              </div>
+          <div className="relative z-10 mx-auto max-w-5xl pt-4 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-pine shadow-sm backdrop-blur">
+              <Sparkles className="h-3.5 w-3.5" />
+              Climbing Training App For Comp Climbers
+            </div>
 
-              <h1
-                className="mt-6 max-w-5xl text-5xl leading-[0.9] text-ink sm:text-6xl lg:text-7xl"
-                style={{ fontFamily: "Georgia, Times New Roman, serif" }}
+            <h1
+              className="mx-auto mt-6 max-w-5xl text-5xl leading-[0.9] text-ink sm:text-6xl lg:text-7xl"
+              style={{ fontFamily: "Georgia, Times New Roman, serif" }}
+            >
+              Build the week.
+              <span className="block text-clay">Read the fall.</span>
+              <span className="block">Train what it means.</span>
+            </h1>
+
+            <p className="mx-auto mt-6 max-w-3xl text-base leading-7 text-ink/72 sm:text-lg">
+              <span className="font-black lowercase tracking-tight text-ink">
+                climb<span className="text-clay">.</span>
+              </span>{" "}
+              turns school, work, comps, route logs, recovery, and real calendar gaps into a climbing system that actually adapts. It plans the week, runs the session, remembers what happened on the wall, and feeds it back into what comes next.
+            </p>
+
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link
+                href="/sign-up"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-chalk shadow-[0_18px_45px_rgba(16,20,24,0.2)] transition hover:bg-pine"
               >
-                Plan the week.
-                <span className="block text-clay">Catch the fall.</span>
-                <span className="block">Train the pattern.</span>
-              </h1>
+                Start Building Your Week
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/sign-in"
+                className="inline-flex items-center justify-center rounded-full border border-ink/12 bg-white/75 px-6 py-3 text-sm font-semibold text-ink backdrop-blur transition hover:border-pine/40"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center justify-center rounded-full border border-clay/20 bg-clay/10 px-6 py-3 text-sm font-semibold text-clay transition hover:border-clay/40"
+              >
+                View Pricing
+              </Link>
+            </div>
 
-              <p className="mt-6 max-w-2xl text-base leading-7 text-ink/72 sm:text-lg">
-                <span className="font-black lowercase tracking-tight text-ink">
-                  climb<span className="text-clay">.</span>
-                </span>{" "}
-                turns school, work, comps, route logs, recovery, and real calendar gaps into a climbing system that actually adapts. It plans the week, runs the session, remembers what happened on the wall, and feeds it back into what comes next.
-              </p>
-
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href="/sign-up"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-chalk shadow-[0_18px_45px_rgba(16,20,24,0.2)] transition hover:bg-pine"
-                >
-                  Start Building Your Week
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  href="/sign-in"
-                  className="inline-flex items-center justify-center rounded-full border border-ink/12 bg-white/75 px-6 py-3 text-sm font-semibold text-ink backdrop-blur transition hover:border-pine/40"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/pricing"
-                  className="inline-flex items-center justify-center rounded-full border border-clay/20 bg-clay/10 px-6 py-3 text-sm font-semibold text-clay transition hover:border-clay/40"
-                >
-                  View Pricing
-                </Link>
+            <div className="relative mx-auto mt-12 max-w-5xl">
+              <div className="pointer-events-none absolute left-6 top-10 hidden w-40 rounded-[24px] border border-white/45 bg-white/70 p-4 text-left shadow-sm backdrop-blur lg:block">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-pine/70">Calendar aware</p>
+                <p className="mt-2 text-sm font-semibold text-ink">Practice, school, work, and comps all shape the week first.</p>
               </div>
 
-              <div className="mt-10 grid gap-3 sm:grid-cols-3">
-                <HeroSignalCard eyebrow="Source of truth" title="One plan surface" body="Calendar, comps, school, work, and route signals stay inside the same model." />
-                <HeroSignalCard eyebrow="Session runner" title="Use it mid-climb" body="Open the block, warm up, train, rate the effort, and move straight into route logging." />
-                <HeroSignalCard eyebrow="Phone speed" title="Fast in the gym" body="Built to be checked with chalky hands between burns, not only later at your desk." />
+              <div className="pointer-events-none absolute right-6 top-16 hidden w-40 rounded-[24px] border border-white/45 bg-white/70 p-4 text-left shadow-sm backdrop-blur lg:block">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-clay/80">Route memory</p>
+                <p className="mt-2 text-sm font-semibold text-ink">The next plan changes when the wall keeps telling the same story.</p>
               </div>
 
-              <div className="mt-8 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-                <div className="rounded-[32px] border border-white/45 bg-white/68 p-5 shadow-sm backdrop-blur">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-pine/70">A day in climb.</p>
-                    <div className="rounded-full border border-ink/10 bg-white/70 px-3 py-1 text-[11px] font-semibold text-ink/50">live flow</div>
-                  </div>
-                  <div className="mt-4 grid gap-3">
-                    {[
-                      ["4:00PM", "Primer session", "Open the plan and run the exact block for the day."],
-                      ["6:00PM", "Team practice", "Practice load stays connected to the rest of the week."],
-                      ["After", "Route log + next-week signal", "The app catches what happened and turns it into the next adjustment."],
-                    ].map(([time, title, body]) => (
-                      <div key={title} className="grid grid-cols-[72px_1fr] gap-3 rounded-[24px] bg-white/82 px-4 py-3">
-                        <div className="text-xs font-semibold text-ink/45">{time}</div>
-                        <div>
-                          <p className="text-sm font-semibold text-ink">{title}</p>
-                          <p className="mt-1 text-sm text-ink/62">{body}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className="pointer-events-none absolute bottom-6 left-14 hidden w-44 rounded-[24px] border border-white/45 bg-white/68 p-4 text-left shadow-sm backdrop-blur lg:block">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-pine/70">Session runner</p>
+                <p className="mt-2 text-sm font-semibold text-ink">Warm up, train, tag fatigue, then roll straight into route analysis.</p>
+              </div>
 
-                <div className="rounded-[32px] border border-white/45 bg-[#fbf6eb]/88 p-5 shadow-sm backdrop-blur">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-pine/70">Live signals</p>
-                  <div className="mt-4 space-y-3">
-                    {[
-                      "calendar window found",
-                      "team practice counted as load",
-                      "route hesitation flagged",
-                      "power-endurance trend rising",
-                    ].map((item, index) => (
-                      <div key={item} className="flex items-center gap-3 rounded-[20px] bg-white/80 px-3 py-3">
-                        <span className={`h-2.5 w-2.5 rounded-full ${index === 2 ? "bg-clay" : "bg-pine"}`} />
-                        <p className="text-sm font-medium text-ink/74">{item}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className="pointer-events-none absolute bottom-10 right-12 hidden w-44 rounded-[24px] border border-white/45 bg-white/68 p-4 text-left shadow-sm backdrop-blur lg:block">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-clay/80">Adaptive loop</p>
+                <p className="mt-2 text-sm font-semibold text-ink">The app doesn’t just log. It rebuilds the next week from the signal.</p>
+              </div>
+
+              <div className="relative mx-auto max-w-[34rem] lg:max-w-[38rem]">
+                <div className="absolute inset-0 rounded-[40px] bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.75),transparent_45%),radial-gradient(circle_at_50%_80%,rgba(217,108,71,0.12),transparent_35%)]" />
+                <div className="absolute left-1/2 top-5 h-[88%] w-px -translate-x-1/2 bg-[linear-gradient(180deg,rgba(16,20,24,0.08),rgba(16,20,24,0.02))]" />
+                <div className="absolute left-10 top-14 h-3 w-3 animate-pulse rounded-full bg-clay/70" />
+                <div className="absolute right-14 top-24 h-2.5 w-2.5 animate-pulse rounded-full bg-pine/70" />
+                <div className="absolute left-20 bottom-16 h-2.5 w-2.5 animate-pulse rounded-full bg-blue-400/70" />
+                <LeadFallGraphic progress={progress} />
               </div>
             </div>
 
-            <div className="relative hidden lg:block">
-              <LeadFallGraphic progress={progress} />
+            <div className="mt-10 grid gap-3 text-left sm:grid-cols-3">
+              <HeroSignalCard eyebrow="Source of truth" title="One plan surface" body="Calendar, comps, school, work, and route signals stay inside the same model." />
+              <HeroSignalCard eyebrow="Session runner" title="Use it mid-climb" body="Open the block, warm up, train, rate the effort, and move straight into route logging." />
+              <HeroSignalCard eyebrow="Phone speed" title="Fast in the gym" body="Built to be checked with chalky hands between burns, not only later at your desk." />
             </div>
           </div>
         </div>
       </section>
-
-      <div className="px-4 pb-24 sm:px-8 lg:hidden lg:px-12">
-        <LeadFallGraphic progress={progress} />
-      </div>
 
       <StoryGridSection />
 
