@@ -259,6 +259,75 @@ function parseFocusAreas(value?: string | null) {
     .filter(Boolean);
 }
 
+function compactSentences(value?: string | null, count = 2) {
+  if (!value) return null;
+  const sentences = value
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (!sentences.length) return null;
+  return sentences.slice(0, count).join(" ");
+}
+
+function whyTodaySummary({
+  sessionEntry,
+  recovery,
+  nextComp,
+}: {
+  sessionEntry: ReturnType<typeof getUpcomingSession>;
+  recovery: ReturnType<typeof getRecoveryBand>;
+  nextComp: Athlete["competitionEvents"][number] | null;
+}) {
+  if (!sessionEntry) return "The dashboard is waiting on a current training session before it can explain today's focus.";
+
+  const reasons = [compactSentences(sessionEntry.session.whyChosen, 1) ?? "This is the next planned session in your week."];
+
+  if (recovery.band === "red") {
+    reasons.push("Recovery is low right now, so quality matters more than extra volume.");
+  } else if (recovery.band === "yellow") {
+    reasons.push("Recovery is decent but not unlimited, so the goal is solid work without forcing too much.");
+  } else {
+    reasons.push("Recovery looks good enough to keep the planned quality high.");
+  }
+
+  if (nextComp) {
+    const days = daysToCompetition(nextComp.eventDate);
+    if (days >= 0 && days <= 14) {
+      reasons.push(`This session also points toward ${nextComp.name} in ${days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"}`}.`);
+    }
+  }
+
+  return reasons.join(" ");
+}
+
+function weekWhySummary({
+  currentPlan,
+  recovery,
+  nextComp,
+}: {
+  currentPlan?: TrainingPlan;
+  recovery: ReturnType<typeof getRecoveryBand>;
+  nextComp: Athlete["competitionEvents"][number] | null;
+}) {
+  const reasons: string[] = [];
+
+  if (currentPlan?.mainWeakness) {
+    reasons.push(`The week is built mainly around ${currentPlan.mainWeakness.toLowerCase()}.`);
+  }
+
+  const explanation = compactSentences(currentPlan?.explanation, 2);
+  if (explanation) reasons.push(explanation);
+
+  if (nextComp) {
+    reasons.push(`The competition countdown is ${countdownLabel(daysToCompetition(nextComp.eventDate)).toLowerCase()}.`);
+  }
+
+  reasons.push(readinessCue(recovery.band));
+  return reasons.slice(0, 3);
+}
+
 function readinessCue(band: ReturnType<typeof getRecoveryBand>["band"]) {
   if (band === "green") return "You have room to push if the session quality feels good.";
   if (band === "yellow") return "Keep quality high, but do not force extra volume.";
@@ -655,112 +724,94 @@ export default async function DashboardPage() {
     console.error("Dashboard peak forecast fallback:", error);
   }
 
+  const todayWhy = whyTodaySummary({ sessionEntry, recovery, nextComp });
+  const weekWhy = weekWhySummary({ currentPlan, recovery, nextComp });
+
   return (
     <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
-      <Card className="space-y-4 lg:hidden">
-        <SectionHeading
-          eyebrow="Quick Check-In"
-          title="Log only what you have time for"
-          description="Answer one question or a few. The dashboard should still work when you are in a rush."
-        />
+      <Card className="lg:hidden">
+        <details>
+          <summary className="list-none cursor-pointer">
+            <SectionHeading
+              eyebrow="Quick Check-In"
+              title="Update readiness"
+              description="Keep this collapsed unless you want to adjust recovery inputs right now."
+            />
+          </summary>
 
-        <form action={updateQuickCheckInAction} className="space-y-4">
-          <input type="hidden" name="userId" value={athlete.id} />
-          <div className="grid gap-3">
-            <MobileQuestionGroup title="10-second check-in" description="The fastest version. Just log the big things." defaultOpen>
-              <MobileQuestion
-                name="recentClimbingDays"
-                label="How many climbing days in the last week?"
-                defaultValue={schedule.recentClimbingDays}
-                options={[0, 1, 2, 3, 4, 5, 6, 7].map((value) => ({ value: value.toString(), label: value.toString() }))}
-              />
-              <MobileQuestion
-                name="skinQuality"
-                label="How is your skin?"
-                defaultValue={schedule.skinQuality}
-                options={[
-                  { value: "3", label: "Rough" },
-                  { value: "5", label: "Okay" },
-                  { value: "7", label: "Good" },
-                  { value: "9", label: "Fresh" },
-                ]}
-              />
-              <MobileQuestion
-                name="sorenessLevel"
-                label="How sore are you?"
-                defaultValue={schedule.sorenessLevel}
-                options={[
-                  { value: "2", label: "Light" },
-                  { value: "4", label: "Manageable" },
-                  { value: "6", label: "Pretty sore" },
-                  { value: "8", label: "Very sore" },
-                ]}
-              />
-            </MobileQuestionGroup>
+          <form action={updateQuickCheckInAction} className="space-y-4 border-t border-ink/8 pt-4">
+            <input type="hidden" name="userId" value={athlete.id} />
+            <div className="grid gap-3">
+              <MobileQuestionGroup title="10-second check-in" description="The fastest version. Just log the big things." defaultOpen>
+                <MobileQuestion
+                  name="recentClimbingDays"
+                  label="How many climbing days in the last week?"
+                  defaultValue={schedule.recentClimbingDays}
+                  options={[0, 1, 2, 3, 4, 5, 6, 7].map((value) => ({ value: value.toString(), label: value.toString() }))}
+                />
+                <MobileQuestion
+                  name="skinQuality"
+                  label="How is your skin?"
+                  defaultValue={schedule.skinQuality}
+                  options={[
+                    { value: "3", label: "Rough" },
+                    { value: "5", label: "Okay" },
+                    { value: "7", label: "Good" },
+                    { value: "9", label: "Fresh" },
+                  ]}
+                />
+                <MobileQuestion
+                  name="sorenessLevel"
+                  label="How sore are you?"
+                  defaultValue={schedule.sorenessLevel}
+                  options={[
+                    { value: "2", label: "Light" },
+                    { value: "4", label: "Manageable" },
+                    { value: "6", label: "Pretty sore" },
+                    { value: "8", label: "Very sore" },
+                  ]}
+                />
+              </MobileQuestionGroup>
 
-            <MobileQuestionGroup title="30-second check-in" description="Add this when you have a little more time before training.">
-              <MobileQuestion
-                name="fatigueLevel"
-                label="How tired do you feel?"
-                defaultValue={schedule.fatigueLevel}
-                options={[
-                  { value: "2", label: "Fresh" },
-                  { value: "4", label: "Fine" },
-                  { value: "6", label: "A bit cooked" },
-                  { value: "8", label: "Heavy fatigue" },
-                ]}
-              />
-              <MobileQuestion
-                name="energyLevel"
-                label="How is your energy?"
-                defaultValue={schedule.energyLevel}
-                options={[
-                  { value: "3", label: "Low" },
-                  { value: "5", label: "Normal" },
-                  { value: "7", label: "Good" },
-                  { value: "9", label: "Ready to go" },
-                ]}
-              />
-              <MobileQuestion
-                name="sleepScore"
-                label="How was sleep?"
-                defaultValue={schedule.sleepScore}
-                options={[
-                  { value: "55", label: "Bad sleep" },
-                  { value: "70", label: "Okay sleep" },
-                  { value: "82", label: "Pretty solid" },
-                  { value: "92", label: "Great sleep" },
-                ]}
-              />
-            </MobileQuestionGroup>
-
-            <MobileQuestionGroup title="Full recovery check" description="Use this when you want readiness and load to be more precise.">
-              <MobileQuestion
-                name="recoveryScore"
-                label="Overall recovery"
-                defaultValue={schedule.recoveryScore}
-                options={[
-                  { value: "45", label: "Low" },
-                  { value: "60", label: "Mixed" },
-                  { value: "75", label: "Good" },
-                  { value: "88", label: "High" },
-                ]}
-              />
-              <MobileQuestion
-                name="dayStrain"
-                label="How loaded did the last day feel?"
-                defaultValue={schedule.dayStrain ? Math.round(schedule.dayStrain) : null}
-                options={[
-                  { value: "8", label: "Light day" },
-                  { value: "11", label: "Normal day" },
-                  { value: "14", label: "Hard day" },
-                  { value: "17", label: "Big day" },
-                ]}
-              />
-            </MobileQuestionGroup>
-          </div>
-          <SubmitButton label="Update today" pendingLabel="Updating..." className="w-full justify-center" />
-        </form>
+              <MobileQuestionGroup title="30-second check-in" description="Add this when you have a little more time before training.">
+                <MobileQuestion
+                  name="fatigueLevel"
+                  label="How tired do you feel?"
+                  defaultValue={schedule.fatigueLevel}
+                  options={[
+                    { value: "2", label: "Fresh" },
+                    { value: "4", label: "Fine" },
+                    { value: "6", label: "A bit cooked" },
+                    { value: "8", label: "Heavy fatigue" },
+                  ]}
+                />
+                <MobileQuestion
+                  name="energyLevel"
+                  label="How is your energy?"
+                  defaultValue={schedule.energyLevel}
+                  options={[
+                    { value: "3", label: "Low" },
+                    { value: "5", label: "Normal" },
+                    { value: "7", label: "Good" },
+                    { value: "9", label: "Ready to go" },
+                  ]}
+                />
+                <MobileQuestion
+                  name="sleepScore"
+                  label="How was sleep?"
+                  defaultValue={schedule.sleepScore}
+                  options={[
+                    { value: "55", label: "Bad sleep" },
+                    { value: "70", label: "Okay sleep" },
+                    { value: "82", label: "Pretty solid" },
+                    { value: "92", label: "Great sleep" },
+                  ]}
+                />
+              </MobileQuestionGroup>
+            </div>
+            <SubmitButton label="Update today" pendingLabel="Updating..." className="w-full justify-center" />
+          </form>
+        </details>
       </Card>
 
       {adherenceSummary ? (
@@ -906,6 +957,11 @@ export default async function DashboardPage() {
             title={todayHeadline(todayItems, sessionEntry, dayLabel)}
             description={todayItems.length ? `What is on the calendar ${dayLabel.toLowerCase()}.` : sessionEntry ? "No calendar event is saved for today, so the next planned session is shown." : `Nothing is on the calendar ${dayLabel.toLowerCase()}.`}
           />
+
+          <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Why today looks like this</p>
+            <p className="mt-2 text-sm leading-6 text-ink">{todayWhy}</p>
+          </div>
 
           {todayItem ? (
             <div className="space-y-3">
@@ -1055,32 +1111,20 @@ export default async function DashboardPage() {
             </div>
 
             {hasAiCoach ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Goal</p>
-                    <p className="mt-2 text-sm leading-6 text-ink">{coach.goal}</p>
-                  </div>
-                  <div className="rounded-2xl border border-ink/10 bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">How hard</p>
-                    <p className="mt-2 text-sm leading-6 text-ink">{coach.effort}</p>
-                  </div>
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Win if</p>
-                    <p className="mt-2 text-sm leading-6 text-emerald-950/80">{coach.win}</p>
-                  </div>
-                </div>
-
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Why this session</p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.whyChosen}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Why</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{compactSentences(sessionEntry.session.whyChosen, 2) ?? coach.goal}</p>
                 </div>
-
                 <div className="rounded-2xl border border-ink/10 bg-white p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Pacing cue</p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{coach.pacing}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">How hard</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{coach.effort}</p>
                 </div>
-              </>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Success looks like</p>
+                  <p className="mt-2 text-sm leading-6 text-emerald-950/80">{coach.win}</p>
+                </div>
+              </div>
             ) : (
               <div className="rounded-2xl border border-pine/20 bg-[linear-gradient(135deg,#f0f7f4_0%,#e8f3ee_100%)] p-5">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-pine/70">AI Coach · Pro</p>
@@ -1105,20 +1149,27 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            <div className="grid gap-3">
-              <div className="rounded-2xl bg-mist p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Warm-up</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.warmup}</p>
+            <details className="rounded-2xl border border-ink/10 bg-white">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-ink">See the full session breakdown</summary>
+              <div className="grid gap-3 border-t border-ink/8 p-4">
+                <div className="rounded-2xl bg-mist p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Warm-up</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.warmup}</p>
+                </div>
+                <div className="rounded-2xl bg-mist p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">What to do</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.mainWork}</p>
+                </div>
+                <div className="rounded-2xl bg-mist p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Why this session</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.whyChosen}</p>
+                </div>
+                <div className="rounded-2xl bg-mist p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Cool-down</p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.cooldown}</p>
+                </div>
               </div>
-              <div className="rounded-2xl bg-mist p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">What to do</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.mainWork}</p>
-              </div>
-              <div className="rounded-2xl bg-mist p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Cool-down</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{sessionEntry.session.cooldown}</p>
-              </div>
-            </div>
+            </details>
 
             <div className="flex flex-wrap gap-2">
               <Link
@@ -1206,7 +1257,7 @@ export default async function DashboardPage() {
             <SectionHeading
               eyebrow="Your Week"
               title={currentPlan ? `Week of ${formatDate(currentPlan.startDate)}` : "No current week yet"}
-              description={currentPlan?.summary ?? "Generate a weekly plan to see your session-by-session week here."}
+              description="A calmer view of the week, with the reason for each day tucked next to the session instead of spread all over the dashboard."
             />
 
             {focusAreas.length ? (
@@ -1219,12 +1270,14 @@ export default async function DashboardPage() {
               </div>
             ) : null}
 
-            {currentPlan?.mainWeakness ? (
-              <div className="rounded-2xl bg-mist p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Main weakness</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{currentPlan.mainWeakness}</p>
+            <div className="rounded-2xl bg-mist p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">Why the week looks like this</p>
+              <div className="mt-2 space-y-2">
+                {weekWhy.map((item) => (
+                  <p key={item} className="text-sm leading-6 text-ink">{item}</p>
+                ))}
               </div>
-            ) : null}
+            </div>
 
             {weekSessions.length ? (
               <div className="space-y-3">
@@ -1265,23 +1318,18 @@ export default async function DashboardPage() {
                           </div>
                         </div>
 
-                        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                           <div className="rounded-2xl bg-white/80 p-3">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Duration</p>
-                            <p className="mt-1.5 text-base font-semibold text-ink">{item.session.durationMinutes}m</p>
+                            <p className="mt-1.5 text-base font-semibold text-ink">{formatSessionDuration(item.session.durationMinutes)}</p>
                           </div>
                           <div className="rounded-2xl bg-white/80 p-3">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Load</p>
                             <p className="mt-1.5 text-base font-semibold text-ink">{item.session.loadScore}</p>
                           </div>
                           <div className="rounded-2xl bg-white/80 p-3">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Strain</p>
-                            <p className="mt-1.5 text-base font-semibold text-ink">{item.strain}</p>
-                            <p className="text-[11px] text-ink/55">{strainLabel(item.strain)}</p>
-                          </div>
-                          <div className="rounded-2xl bg-white/80 p-3">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Try-Hard</p>
-                            <p className="mt-1.5 text-base font-semibold text-ink">{item.tryHard}/10</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">Intensity</p>
+                            <p className="mt-1.5 text-base font-semibold text-ink">{intensityLabel(item.session.intensity)}</p>
                             <p className="text-[11px] text-ink/55">{tryHardLabel(item.tryHard)}</p>
                           </div>
                         </div>
@@ -1299,24 +1347,18 @@ export default async function DashboardPage() {
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Why this day</p>
                           <p className="mt-2 text-sm leading-6 text-ink">{item.session.whyChosen}</p>
                         </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="rounded-2xl bg-mist p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Warm-up</p>
-                            <p className="mt-2 text-sm leading-6 text-ink">{item.session.warmup}</p>
-                          </div>
-                          <div className="rounded-2xl bg-mist p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Cool-down</p>
-                            <p className="mt-2 text-sm leading-6 text-ink">{item.session.cooldown}</p>
-                          </div>
-                        </div>
                         <div className="rounded-2xl bg-mist p-4">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Main work</p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">What to do</p>
                           <p className="mt-2 text-sm leading-6 text-ink">{item.session.mainWork}</p>
                         </div>
-                        <div className="rounded-2xl bg-mist p-4">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Recovery note</p>
-                          <p className="mt-2 text-sm leading-6 text-ink">{item.session.recoveryNotes}</p>
-                        </div>
+                        <details className="rounded-2xl bg-mist p-4">
+                          <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.18em] text-pine">Warm-up, cool-down, and recovery</summary>
+                          <div className="mt-3 grid gap-3">
+                            <p className="text-sm leading-6 text-ink"><span className="font-semibold">Warm-up:</span> {item.session.warmup}</p>
+                            <p className="text-sm leading-6 text-ink"><span className="font-semibold">Cool-down:</span> {item.session.cooldown}</p>
+                            <p className="text-sm leading-6 text-ink"><span className="font-semibold">Recovery note:</span> {item.session.recoveryNotes}</p>
+                          </div>
+                        </details>
                       </div>
                     </details>
                   );
@@ -1358,7 +1400,20 @@ export default async function DashboardPage() {
       </section>
 
       {currentPlan ? (
-        <LoadChart sessions={currentPlan.sessions.map((session) => ({ dayLabel: session.dayLabel, loadScore: session.loadScore }))} />
+        <Card>
+          <details>
+            <summary className="cursor-pointer list-none">
+              <SectionHeading
+                eyebrow="Load View"
+                title="Weekly load chart"
+                description="Open this when you want the numeric load shape. It stays tucked away so the dashboard feels quieter by default."
+              />
+            </summary>
+            <div className="border-t border-ink/8 pt-4">
+              <LoadChart sessions={currentPlan.sessions.map((session) => ({ dayLabel: session.dayLabel, loadScore: session.loadScore }))} />
+            </div>
+          </details>
+        </Card>
       ) : null}
     </div>
   );

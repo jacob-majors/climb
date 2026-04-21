@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Discipline } from "@prisma/client";
+import { GripVertical, Pencil } from "lucide-react";
 import { saveScheduleAction } from "@/app/actions";
 import { CalendarEntry, CalendarEntryType, CalendarLoad } from "@/lib/calendar";
 import { dayNames } from "@/lib/format";
@@ -86,6 +87,12 @@ function emptyCompetition(): CompetitionDraft {
   return { name: "", date: "", location: "", discipline: Discipline.MIXED, notes: "" };
 }
 
+function competitionSummary(notes: string) {
+  const trimmed = notes.trim();
+  if (!trimmed) return null;
+  return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
+}
+
 // ── PartnerTags ───────────────────────────────────────────────────────────────
 
 function PartnerTags({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -141,21 +148,44 @@ function PartnerTags({ value, onChange }: { value: string; onChange: (v: string)
 // ── EventCard (edit mode only) ────────────────────────────────────────────────
 
 type EventCardProps = {
+  index: number;
   event: CalendarEntry;
   isExpanded: boolean;
   isSelected: boolean;
+  isDragging: boolean;
   onToggle: () => void;
   onSelect: () => void;
   onUpdate: (field: keyof CalendarEntry, value: string) => void;
   onRemove: () => void;
+  onDragStart: (index: number) => void;
+  onDragEnd: () => void;
 };
 
-function EventCard({ event, isExpanded, isSelected, onToggle, onSelect, onUpdate, onRemove }: EventCardProps) {
+function EventCard({
+  index,
+  event,
+  isExpanded,
+  isSelected,
+  isDragging,
+  onToggle,
+  onSelect,
+  onUpdate,
+  onRemove,
+  onDragStart,
+  onDragEnd,
+}: EventCardProps) {
   const cfg = TYPE_CONFIG[event.type] ?? TYPE_CONFIG.life;
   const isSynced = Boolean(event.source && event.source !== "manual");
 
   return (
-    <div className={`rounded-2xl border overflow-hidden transition-colors ${isSelected ? "border-pine/40 bg-pine/5" : "border-ink/10"}`}>
+    <div
+      draggable
+      onDragStart={() => onDragStart(index)}
+      onDragEnd={onDragEnd}
+      className={`rounded-2xl border overflow-hidden transition-colors ${isSelected ? "border-pine/40 bg-pine/5" : "border-ink/10"} ${
+        isDragging ? "opacity-40" : ""
+      }`}
+    >
       <div className={`flex items-center gap-2 px-3 py-2.5 transition-colors ${isExpanded ? "bg-ink/5" : ""}`}>
         <input
           type="checkbox"
@@ -169,6 +199,7 @@ function EventCard({ event, isExpanded, isSelected, onToggle, onSelect, onUpdate
           onClick={onToggle}
           className="flex items-center gap-2 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
         >
+          <GripVertical className="h-4 w-4 flex-shrink-0 text-ink/25" />
           <span className={`h-2 w-2 rounded-full flex-shrink-0 ${cfg.dotClass}`} />
           <span className="text-sm font-medium text-ink flex-1 truncate min-w-0">
             {event.title || <span className="text-ink/35">Untitled event</span>}
@@ -410,6 +441,9 @@ export function ScheduleEditor({
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragTargetDay, setDragTargetDay] = useState<string | null>(null);
+  const [expandedCompetitionIndex, setExpandedCompetitionIndex] = useState<number | null>(null);
   const { weekday: todayDay, nowMinutes } = getNowInTimeZone("America/Los_Angeles");
   const weekDates = getWeekDates("America/Los_Angeles", weekOffset);
 
@@ -453,6 +487,20 @@ export function ScheduleEditor({
     });
   }
 
+  function moveEventToDay(index: number, day: string) {
+    setEvents((cur) =>
+      cur.map((event, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...event,
+              day,
+              date: event.source === "ics" || event.source === "google" ? undefined : event.date,
+            }
+          : event,
+      ),
+    );
+  }
+
   function updateCompetition(index: number, field: keyof CompetitionDraft, value: string) {
     setCompetitions((cur) => cur.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
   }
@@ -492,10 +540,11 @@ export function ScheduleEditor({
           <button
             type="button"
             onClick={() => setMode("edit")}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/10 bg-white text-ink/60 hover:border-pine/40 hover:text-pine transition-colors text-lg font-light shadow-sm"
+            className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink/70 transition-colors hover:border-pine/40 hover:text-pine shadow-sm"
             title="Edit schedule"
           >
-            +
+            <Pencil className="h-4 w-4" />
+            Edit week
           </button>
         </div>
 
@@ -580,11 +629,26 @@ export function ScheduleEditor({
             <p className="text-sm font-semibold text-ink">Competitions</p>
             <div className="space-y-1.5">
               {competitions.map((comp, i) => (
-                <div key={i} className="flex items-center gap-3 rounded-xl bg-clay/8 px-3 py-2">
-                  <span className="text-sm font-medium text-ink flex-1">{comp.name}</span>
-                  {comp.date && <span className="text-xs text-ink/50">{new Date(comp.date + "T00:00:00").toLocaleDateString()}</span>}
-                  {comp.location && <span className="text-xs text-ink/40 hidden sm:block">{comp.location}</span>}
-                </div>
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setMode("edit");
+                    setExpandedCompetitionIndex(i);
+                  }}
+                  className="w-full rounded-xl bg-clay/8 px-3 py-2.5 text-left transition hover:bg-clay/12"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-ink flex-1">{comp.name}</span>
+                    {comp.date && <span className="text-xs text-ink/50">{new Date(comp.date + "T00:00:00").toLocaleDateString()}</span>}
+                    {comp.location && <span className="text-xs text-ink/40 hidden sm:block">{comp.location}</span>}
+                  </div>
+                  {competitionSummary(comp.notes) ? (
+                    <p className="mt-1.5 text-xs leading-5 text-ink/55">{competitionSummary(comp.notes)}</p>
+                  ) : (
+                    <p className="mt-1.5 text-xs leading-5 text-ink/40">Click to add comp details like start time, ISO end, round notes, or travel plan.</p>
+                  )}
+                </button>
               ))}
             </div>
           </div>
@@ -618,8 +682,11 @@ export function ScheduleEditor({
       ))}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <p className="text-base font-semibold text-ink">Edit your week</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-base font-semibold text-ink">Edit your week</p>
+          <p className="text-xs text-ink/50">Drag events between days, or tap any event card to edit its details.</p>
+        </div>
         <button type="button" onClick={() => setMode("view")}
           className="text-xs font-semibold text-ink/50 hover:text-ink transition-colors px-3 py-1.5 rounded-full border border-ink/10 hover:border-ink/25">
           Cancel
@@ -677,7 +744,28 @@ export function ScheduleEditor({
             const dayIndices = dayEvts.map((e) => events.indexOf(e));
             const allSelected = dayIndices.length > 0 && dayIndices.every((i) => selectedIndices.includes(i));
             return (
-              <div key={day} className="rounded-[20px] border border-ink/10 bg-white/70 p-3">
+              <div
+                key={day}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDragTargetDay(day);
+                }}
+                onDragLeave={() => {
+                  if (dragTargetDay === day) setDragTargetDay(null);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (draggedIndex !== null) {
+                    moveEventToDay(draggedIndex, day);
+                    setExpandedIndex(draggedIndex);
+                  }
+                  setDragTargetDay(null);
+                  setDraggedIndex(null);
+                }}
+                className={`rounded-[20px] border bg-white/70 p-3 transition-colors ${
+                  dragTargetDay === day ? "border-pine/40 bg-pine/5" : "border-ink/10"
+                }`}
+              >
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 min-w-0">
                     {dayEvts.length > 0 && (
@@ -718,16 +806,23 @@ export function ScheduleEditor({
                       const idx = events.indexOf(event);
                       return (
                         <EventCard
+                          index={idx}
                           key={idx}
                           event={event}
                           isExpanded={expandedIndex === idx}
                           isSelected={selectedIndices.includes(idx)}
+                          isDragging={draggedIndex === idx}
                           onToggle={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
                           onSelect={() => setSelectedIndices((cur) =>
                             cur.includes(idx) ? cur.filter((i) => i !== idx) : [...cur, idx]
                           )}
                           onUpdate={(field, value) => updateEvent(idx, field, value)}
                           onRemove={() => removeEvent(idx)}
+                          onDragStart={setDraggedIndex}
+                          onDragEnd={() => {
+                            setDraggedIndex(null);
+                            setDragTargetDay(null);
+                          }}
                         />
                       );
                     })
@@ -765,32 +860,56 @@ export function ScheduleEditor({
 
         <div className="space-y-3">
           {competitions.slice(0, 1).map((comp, index) => (
-            <div key={`${comp.id ?? "new"}-${index}`} className="rounded-2xl border border-ink/10 bg-mist/30 p-3 space-y-2">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <input value={comp.name} onChange={(e) => updateCompetition(index, "name", e.target.value)}
-                  placeholder="Competition name"
-                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
-                <input type="date" value={comp.date} onChange={(e) => updateCompetition(index, "date", e.target.value)}
-                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
-                <input value={comp.location} onChange={(e) => updateCompetition(index, "location", e.target.value)}
-                  placeholder="Location"
-                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
-                <select value={comp.discipline} onChange={(e) => updateCompetition(index, "discipline", e.target.value)}
-                  className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15">
-                  {Object.values(Discipline).map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              <textarea value={comp.notes} onChange={(e) => updateCompetition(index, "notes", e.target.value)}
-                placeholder="Notes" rows={2}
-                className="w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none resize-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
-              <div className="flex justify-end">
-                <button type="button" onClick={() => setCompetitions((c) => c.filter((_, i) => i !== index))}
-                  className="text-xs font-semibold text-clay hover:text-clay/70 transition-colors">
-                  Remove
-                </button>
-              </div>
+            <div key={`${comp.id ?? "new"}-${index}`} className="rounded-2xl border border-ink/10 bg-mist/30 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setExpandedCompetitionIndex(expandedCompetitionIndex === index ? null : index)}
+                className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink">{comp.name || "Competition"}</p>
+                  <p className="mt-1 text-xs text-ink/50">
+                    {[comp.date ? new Date(comp.date + "T00:00:00").toLocaleDateString() : null, comp.location || null, comp.discipline || null]
+                      .filter(Boolean)
+                      .join(" • ") || "Add date, location, and comp details"}
+                  </p>
+                  {competitionSummary(comp.notes) ? (
+                    <p className="mt-1.5 text-xs leading-5 text-ink/55">{competitionSummary(comp.notes)}</p>
+                  ) : null}
+                </div>
+                <span className="text-xs text-ink/35">{expandedCompetitionIndex === index ? "▲" : "▼"}</span>
+              </button>
+
+              {expandedCompetitionIndex === index && (
+                <div className="space-y-2 border-t border-ink/8 bg-white px-3 pb-3 pt-3">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input value={comp.name} onChange={(e) => updateCompetition(index, "name", e.target.value)}
+                      placeholder="Competition name"
+                      className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
+                    <input type="date" value={comp.date} onChange={(e) => updateCompetition(index, "date", e.target.value)}
+                      className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
+                    <input value={comp.location} onChange={(e) => updateCompetition(index, "location", e.target.value)}
+                      placeholder="Location"
+                      className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
+                    <select value={comp.discipline} onChange={(e) => updateCompetition(index, "discipline", e.target.value)}
+                      className="rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-pine focus:ring-2 focus:ring-pine/15">
+                      {Object.values(Discipline).map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <textarea value={comp.notes} onChange={(e) => updateCompetition(index, "notes", e.target.value)}
+                    placeholder="Competition notes: start time, ISO finish time, check-in window, round order, warmup wall, travel plan, partner info, anything you want to remember."
+                    rows={4}
+                    className="w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm outline-none resize-none focus:border-pine focus:ring-2 focus:ring-pine/15" />
+                  <div className="flex justify-end">
+                    <button type="button" onClick={() => setCompetitions((c) => c.filter((_, i) => i !== index))}
+                      className="text-xs font-semibold text-clay hover:text-clay/70 transition-colors">
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
