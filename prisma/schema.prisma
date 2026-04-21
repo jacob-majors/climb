@@ -287,3 +287,13 @@ model TrainingSession {
   completedAt      DateTime?
   createdAt        DateTime       @default(now())
 }
+
+model BugReport {
+  id          String   @id @default(cuid())
+  userId      String?
+  userEmail   String?
+  title       String
+  description String
+  url         String?
+  createdAt   DateTime @default(now())
+}

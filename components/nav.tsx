@@ -5,6 +5,7 @@ import { Show, UserButton, SignInButton } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { CalendarDays, Dumbbell, LayoutDashboard, Mountain } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { BugReportButton } from "@/components/bug-report-button";
 
 const links = [
   { href: "/dashboard", label: "Dashboard",      icon: LayoutDashboard },
@@ -24,6 +25,7 @@ export function Nav() {
 
       <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
         <Show when="signed-in">
+          <BugReportButton />
           <UserButton userProfileMode="navigation" userProfileUrl="/profile" />
         </Show>
         <Show when="signed-out">
@@ -33,7 +35,7 @@ export function Nav() {
           >
             Pricing
           </Link>
-          <SignInButton mode="redirect">
+          <SignInButton mode="modal">
             <button className="flex items-center gap-2 rounded-full border border-ink/12 bg-chalk/95 px-3 py-2 text-xs font-semibold shadow-[0_8px_24px_rgba(15,36,32,0.12)] backdrop-blur transition hover:border-pine/40">
               Sign in
             </button>

@@ -980,3 +980,15 @@ export async function updateSessionPlacementAction(input: {
   revalidatePath(`/plans/${session.trainingPlan.id}`);
   return { ok: true };
 }
+
+export async function submitBugReportAction(formData: FormData) {
+  const userId = await getOrCreateDbUser().catch(() => null);
+  const title = text(formData, "title").slice(0, 200);
+  const description = text(formData, "description").slice(0, 2000);
+  const url = text(formData, "url").slice(0, 500) || null;
+  if (!title || !description) return { ok: false, error: "Title and description are required." };
+  await prisma.bugReport.create({
+    data: { userId: userId ?? null, title, description, url },
+  });
+  return { ok: true };
+}
