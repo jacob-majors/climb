@@ -64,6 +64,17 @@ type TodayItem = {
   notes?: string;
 };
 
+const todayPriority: Record<CalendarEntryType, number> = {
+  work: 0,
+  practice: 1,
+  climbing: 2,
+  travel: 3,
+  recovery: 4,
+  life: 5,
+  school: 6,
+  competition: 7,
+};
+
 function daysToCompetition(date: Date) {
   return differenceInCalendarDays(startOfDay(date), startOfDay(new Date()));
 }
@@ -122,7 +133,7 @@ function humanizeTimeRange(time?: string | null) {
 }
 
 function todayHeadline(items: TodayItem[], sessionEntry: ReturnType<typeof getUpcomingSession>) {
-  const first = items[0];
+  const first = selectTodayItem(items);
   if (first) {
     const timeLabel = humanizeTimeRange(first.time);
     return `${first.title}${timeLabel ? ` from ${timeLabel}` : ""}`;
@@ -133,6 +144,14 @@ function todayHeadline(items: TodayItem[], sessionEntry: ReturnType<typeof getUp
   }
 
   return "Nothing scheduled today";
+}
+
+function selectTodayItem(items: TodayItem[]) {
+  return [...items].sort((a, b) => {
+    const priorityDiff = (todayPriority[a.type] ?? 99) - (todayPriority[b.type] ?? 99);
+    if (priorityDiff !== 0) return priorityDiff;
+    return (inferEventStartMinutes(a.time) ?? 24 * 60) - (inferEventStartMinutes(b.time) ?? 24 * 60);
+  })[0] ?? null;
 }
 
 function competitionDateLabel(competition: Athlete["competitionEvents"][number]) {
@@ -451,6 +470,7 @@ export default async function DashboardPage() {
   let currentPlan = selectCurrentWeekPlan(athlete.trainingPlans);
   let sessionEntry = getUpcomingSession(currentPlan, schedule.trainingAvailability);
   let todayItems: TodayItem[] = [];
+  let todayItem: TodayItem | null = null;
   let nextComp = getNextCompetition(athlete.competitionEvents);
   let daysUntilComp = nextComp ? daysToCompetition(nextComp.eventDate) : null;
   let focusAreas = parseFocusAreas(currentPlan?.keyFocusAreas);
@@ -467,6 +487,7 @@ export default async function DashboardPage() {
 
   try {
     todayItems = buildTodayItems(schedule);
+    todayItem = selectTodayItem(todayItems);
     upcomingItems = buildUpcomingItems({
       latestPlan: currentPlan,
       schedule,
@@ -498,6 +519,7 @@ export default async function DashboardPage() {
       currentPlan?.explanation ||
       null;
     todayItems = [];
+    todayItem = null;
     upcomingItems = [];
     weekSessions = [];
   }
@@ -659,24 +681,24 @@ export default async function DashboardPage() {
             description={todayItems.length ? "What is on the calendar today." : sessionEntry ? "No calendar event is saved for today, so the next planned session is shown." : "Nothing is on the calendar today."}
           />
 
-          {todayItems.length ? (
+          {todayItem ? (
             <div className="space-y-3">
-              {todayItems.map((item, index) => {
-                const appearance = upcomingAppearance(item.type);
+              {(() => {
+                const appearance = upcomingAppearance(todayItem.type);
 
                 return (
-                  <div key={`${item.title}-${index}`} className="flex items-start gap-3 rounded-2xl border border-ink/10 bg-mist/40 p-4">
+                  <div className="flex items-start gap-3 rounded-2xl border border-ink/10 bg-mist/40 p-4">
                     <span className={`rounded-2xl p-2.5 ${appearance.iconClass}`}>
                       <appearance.Icon className="h-4 w-4" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-ink">{item.title}</p>
-                      {item.time ? <p className="mt-1 text-sm text-ink/65">{humanizeTimeRange(item.time)}</p> : null}
-                      {item.notes ? <p className="mt-2 text-xs leading-5 text-ink/55">{item.notes}</p> : null}
+                      <p className="text-sm font-semibold text-ink">{todayItem.title}</p>
+                      {todayItem.time ? <p className="mt-1 text-sm text-ink/65">{humanizeTimeRange(todayItem.time)}</p> : null}
+                      {todayItem.notes ? <p className="mt-2 text-xs leading-5 text-ink/55">{todayItem.notes}</p> : null}
                     </div>
                   </div>
                 );
-              })}
+              })()}
             </div>
           ) : sessionEntry ? (
             <div className="rounded-2xl border border-pine/10 bg-pine/5 p-4">

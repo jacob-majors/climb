@@ -1,4 +1,4 @@
-import { addDays, format, isAfter, isBefore, startOfDay } from "date-fns";
+import { addDays, isAfter, isBefore, startOfDay } from "date-fns";
 import { CalendarEntry, CalendarEntryType, inferCalendarEntryType } from "@/lib/calendar";
 import { dayNames } from "@/lib/format";
 
@@ -162,9 +162,34 @@ function inferLoad(title: string, type: CalendarEntryType, durationHours: number
   return "low" as const;
 }
 
-function toDayName(date: Date) {
-  const jsDay = date.getDay();
-  return dayNames[(jsDay + 6) % 7];
+function zonedParts(date: Date, timeZone = "America/Los_Angeles") {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+
+  return Object.fromEntries(parts.map((part) => [part.type, part.value]));
+}
+
+function toDayName(date: Date, timeZone = "America/Los_Angeles") {
+  const parts = zonedParts(date, timeZone);
+  return dayNames.find((day) => day === parts.weekday) ?? dayNames[0];
+}
+
+function toIsoDate(date: Date, timeZone = "America/Los_Angeles") {
+  const parts = zonedParts(date, timeZone);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function toClockTime(date: Date, timeZone = "America/Los_Angeles") {
+  const parts = zonedParts(date, timeZone);
+  return `${parts.hour}:${parts.minute} ${parts.dayPeriod}`;
 }
 
 export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
@@ -179,7 +204,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
 
   for (const event of filtered) {
     if (inferType(event.title, event.description) === "school") {
-      const dateKey = format(event.start, "yyyy-MM-dd");
+      const dateKey = toIsoDate(event.start);
       const bucket = schoolByDate.get(dateKey) ?? [];
       bucket.push(event);
       schoolByDate.set(dateKey, bucket);
@@ -201,7 +226,7 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
       title: "School",
       type: "school",
       load: inferLoad("school", "school", durationHours),
-      time: `${format(first.start, "h:mm a")} - ${format(end, "h:mm a")}`,
+      time: `${toClockTime(first.start)} - ${toClockTime(end)}`,
       date: dateKey,
       source: "ics",
     });
@@ -217,8 +242,8 @@ export function importableCalendarEntries(events: ImportedCalendarEvent[]) {
       title: event.title,
       type,
       load: inferLoad(event.title, type, durationHours),
-      time: event.end ? `${format(event.start, "h:mm a")} - ${format(event.end, "h:mm a")}` : format(event.start, "h:mm a"),
-      date: format(event.start, "yyyy-MM-dd"),
+      time: event.end ? `${toClockTime(event.start)} - ${toClockTime(event.end)}` : toClockTime(event.start),
+      date: toIsoDate(event.start),
       notes: [event.location, event.description].filter(Boolean).join(" • ") || undefined,
       source: "ics",
     };
