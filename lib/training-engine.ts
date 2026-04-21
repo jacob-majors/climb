@@ -12,7 +12,7 @@ import {
   User,
   RecoveryQuality,
 } from "@prisma/client";
-import { differenceInCalendarDays, endOfWeek, nextMonday } from "date-fns";
+import { differenceInCalendarDays, endOfWeek, startOfWeek } from "date-fns";
 import { CalendarEntry, parseWeeklyCalendar } from "@/lib/calendar";
 import { dayNames } from "@/lib/format";
 import { getRecoveryBand } from "@/lib/recovery";
@@ -138,9 +138,13 @@ function getCalendarPressure(entries: CalendarEntry[], workAtGym: boolean): numb
   return score;
 }
 
-function getCalendarAnchoredSession(entries: CalendarEntry[]): SessionType | null {
+function isLockedTeamPracticeDay(dayIndex: number, entries: CalendarEntry[]) {
+  return (dayIndex === 1 || dayIndex === 4) && entries.some((entry) => entry.type === "practice");
+}
+
+function getCalendarAnchoredSession(dayIndex: number, entries: CalendarEntry[]): SessionType | null {
   if (entries.find((e) => e.type === "competition")) return SessionType.COMPETITION;
-  if (entries.find((e) => e.type === "practice")) return SessionType.TEAM_PRACTICE;
+  if (isLockedTeamPracticeDay(dayIndex, entries)) return SessionType.TEAM_PRACTICE;
   const climbing = entries.find((e) => e.type === "climbing");
   if (climbing?.load === "high") return SessionType.PROJECTING;
   if (climbing?.load === "moderate") return SessionType.TECHNIQUE_DRILLS;
@@ -418,7 +422,7 @@ function buildSession(
 export function generateTrainingPlan(input: EngineInput): PlanDraft {
   const { user, profile, schedule, routes, competitions, priorPlans = [] } = input;
 
-  const startDate = nextMonday(new Date());
+  const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
   const endDate = endOfWeek(startDate, { weekStartsOn: 1 });
   const availability = parseAvailability(schedule.timeAvailableByDay);
   const calendarByDay = getCalendarByDay(schedule.weeklyCalendar);
@@ -455,8 +459,8 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
     stressAdjustment >= 3
       ? SessionType.ACTIVE_RECOVERY
       : chooseStrengthSupportSession(profile, rankedWeaknesses, compCtx), // Wed: support strength or recovery
-    SessionType.TEAM_PRACTICE,                                  // Thu: practice
-    SessionType.FULL_REST,                                      // Fri: rest
+    blendedSessions[1] ?? SessionType.TECHNIQUE_DRILLS,         // Thu: secondary weakness
+    SessionType.TEAM_PRACTICE,                                  // Fri: practice
     profile.primaryDiscipline === Discipline.LEAD
       ? SessionType.LEAD_ENDURANCE
       : SessionType.LIMIT_BOULDERING,                          // Sat: discipline-specific
@@ -475,12 +479,12 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
   // ── Calendar anchoring ─────────────────────────────────────────────────────
   dayNames.forEach((dayLabel, dayIndex) => {
     const entries = calendarByDay[dayLabel] ?? [];
-    const anchored = getCalendarAnchoredSession(entries);
+    const anchored = getCalendarAnchoredSession(dayIndex, entries);
     if (anchored) baseStructure[dayIndex] = anchored;
 
     const pressure = getCalendarPressure(entries, schedule.workAtGym);
     if (pressure >= 6 && baseStructure[dayIndex] !== SessionType.COMPETITION) {
-      baseStructure[dayIndex] = entries.some((e) => e.type === "practice")
+      baseStructure[dayIndex] = isLockedTeamPracticeDay(dayIndex, entries)
         ? SessionType.TEAM_PRACTICE
         : SessionType.ACTIVE_RECOVERY;
     }
@@ -585,7 +589,7 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
     if (sessionType === SessionType.FULL_REST) duration = 0;
     if (sessionType === SessionType.ACTIVE_RECOVERY) duration = Math.min(duration, 35);
     if (sessionType === SessionType.MOBILITY) duration = Math.min(duration, 40);
-    if (sessionType === SessionType.TEAM_PRACTICE) duration = Math.max(duration, 90);
+    if (sessionType === SessionType.TEAM_PRACTICE) duration = 120;
 
     // Calendar pressure trims duration
     if (
@@ -619,6 +623,11 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
       sessionDurationMinutes: duration,
     };
 
+    const scheduledWindow =
+      sessionType === SessionType.TEAM_PRACTICE && (dayIndex === 1 || dayIndex === 4)
+        ? { label: "Team practice", start: "18:00", end: "20:00" }
+        : findAvailabilityForDay(schedule.trainingAvailability, dayLabel).windows[0] ?? null;
+
     const drafted = buildSession(
       dayIndex,
       sessionType,
@@ -628,7 +637,7 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
       mesocycleCtx,
       injuryRisk,
       user.age,
-      findAvailabilityForDay(schedule.trainingAvailability, dayLabel).windows[0] ?? null,
+      scheduledWindow,
     );
 
     // Additional recovery note appends

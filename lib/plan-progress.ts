@@ -61,11 +61,20 @@ export function getSessionEntry(
   trainingAvailabilityRaw?: string | null,
 ): SessionEntry {
   const window = findAvailabilityForDay(trainingAvailabilityRaw, session.dayLabel).windows[0];
+  const scheduledWindowLabel =
+    session.scheduledStartTime && session.scheduledEndTime
+      ? [session.scheduledWindowLabel, `${session.scheduledStartTime}-${session.scheduledEndTime}`].filter(Boolean).join(" • ")
+      : null;
 
   return {
     session,
-    date: getSessionDate(planStart, session.dayIndex, trainingAvailabilityRaw, session.dayLabel),
-    windowLabel: window ? formatTrainingWindow(window) : null,
+    date: applyMinutes(
+      addDays(startOfDay(planStart), session.dayIndex),
+      parseClockMinutes(session.scheduledStartTime ?? "") ?? (
+        window ? parseClockMinutes(window.start) : 17 * 60
+      ),
+    ),
+    windowLabel: scheduledWindowLabel || (window ? formatTrainingWindow(window) : null),
   };
 }
 

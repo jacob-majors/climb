@@ -12,7 +12,7 @@ import {
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { addDays, differenceInCalendarDays, format, formatDistanceToNowStrict, isBefore, startOfDay } from "date-fns";
+import { addDays, differenceInCalendarDays, format, isBefore, startOfDay } from "date-fns";
 import { LoadChart } from "@/components/load-chart";
 import { ProgressRing } from "@/components/progress-ring";
 import { SectionHeading } from "@/components/section-heading";
@@ -144,6 +144,31 @@ function todayHeadline(items: TodayItem[], sessionEntry: ReturnType<typeof getUp
   }
 
   return "Nothing scheduled today";
+}
+
+function formatClockLabel(value?: string | null) {
+  if (!value) return null;
+  const [hoursRaw, minutesRaw] = value.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const twelveHour = hours % 12 || 12;
+  return `${twelveHour}:${String(minutes).padStart(2, "0")}${suffix}`;
+}
+
+function formatScheduledRange(start?: string | null, end?: string | null) {
+  if (!start || !end) return null;
+  return `${formatClockLabel(start)}-${formatClockLabel(end)}`;
+}
+
+function relativeDaySummary(date: Date) {
+  const today = startOfDay(new Date());
+  const target = startOfDay(date);
+  const diff = differenceInCalendarDays(target, today);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  return format(date, "EEEE");
 }
 
 function selectTodayItem(items: TodayItem[]) {
@@ -926,7 +951,11 @@ export default async function DashboardPage() {
             <SectionHeading
               eyebrow="Next Session"
               title={sessionEntry.session.title}
-              description={`${sessionEntry.session.dayLabel} • ${formatDistanceToNowStrict(sessionEntry.date, { addSuffix: true })}${sessionEntry.windowLabel ? ` • ${sessionEntry.windowLabel}` : ""}`}
+              description={[
+                sessionEntry.session.dayLabel,
+                relativeDaySummary(sessionEntry.date),
+                formatScheduledRange(sessionEntry.session.scheduledStartTime, sessionEntry.session.scheduledEndTime) ?? sessionEntry.windowLabel,
+              ].filter(Boolean).join(" • ")}
             />
 
             <div className="flex flex-wrap items-center justify-between gap-3">
