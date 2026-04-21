@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import { logSessionSurveyAction } from "@/app/actions";
+import { ClimbTimer } from "@/components/climb-timer";
 
 type SessionData = {
   id: string;
@@ -36,145 +37,6 @@ const SECTION_LABELS: Record<SectionId, string> = {
   main: "Main work",
   survey: "How did it go?",
 };
-
-// ── Hangboard Timer ───────────────────────────────────────────────────────────
-
-function HangTimer() {
-  const [hangSec, setHangSec] = useState(7);
-  const [restSec, setRestSec] = useState(180);
-  const [phase, setPhase] = useState<"idle" | "hang" | "rest">("idle");
-  const [remaining, setRemaining] = useState(7);
-  const [sets, setSets] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioRef = useRef<AudioContext | null>(null);
-
-  function beep(duration = 0.18, frequency = 880) {
-    if (typeof window === "undefined") return;
-    const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-
-    const ctx = audioRef.current ?? new AudioCtx();
-    audioRef.current = ctx;
-
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.value = frequency;
-    gain.gain.value = 0.0001;
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-
-    const now = ctx.currentTime;
-    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    oscillator.start(now);
-    oscillator.stop(now + duration);
-  }
-
-  function clearTimer() {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = null;
-  }
-
-  function start() {
-    beep(0.12, 620);
-    setPhase("hang");
-    setRemaining(hangSec);
-    clearTimer();
-    intervalRef.current = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          clearTimer();
-          beep(0.18, 980);
-          setPhase("rest");
-          setRemaining(restSec);
-          setSets((s) => s + 1);
-          intervalRef.current = setInterval(() => {
-            setRemaining((r2) => {
-              if (r2 <= 1) {
-                clearTimer();
-                beep(0.22, 720);
-                setPhase("idle");
-                return hangSec;
-              }
-              return r2 - 1;
-            });
-          }, 1000);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
-  }
-
-  function reset() {
-    clearTimer();
-    setPhase("idle");
-    setRemaining(hangSec);
-  }
-
-  useEffect(() => () => {
-    clearTimer();
-    audioRef.current?.close().catch(() => undefined);
-  }, []);
-
-  const mins = Math.floor(remaining / 60);
-  const secs = remaining % 60;
-  const display = mins > 0 ? `${mins}:${String(secs).padStart(2, "0")}` : `${secs}`;
-
-  return (
-    <div className="rounded-[20px] border border-ink/10 bg-white p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-ink">Hangboard timer</p>
-        <span className="text-xs text-ink/40">{sets} set{sets !== 1 ? "s" : ""} done • beep cues on</span>
-      </div>
-
-      {/* Big time display */}
-      <div className={`text-center py-4 rounded-2xl transition-colors ${
-        phase === "hang" ? "bg-clay/10" : phase === "rest" ? "bg-moss/10" : "bg-ink/4"
-      }`}>
-        <p className={`text-5xl font-black tabular-nums ${
-          phase === "hang" ? "text-clay" : phase === "rest" ? "text-pine" : "text-ink/50"
-        }`}>{display}</p>
-        <p className={`mt-1 text-xs font-semibold uppercase tracking-wider ${
-          phase === "hang" ? "text-clay/70" : phase === "rest" ? "text-pine/70" : "text-ink/35"
-        }`}>
-          {phase === "hang" ? "HANG" : phase === "rest" ? "REST" : "READY"}
-        </p>
-      </div>
-
-      {/* Duration controls */}
-      <div className="grid grid-cols-2 gap-2">
-        <label className="text-xs text-ink/50">
-          Hang (sec)
-          <input type="number" value={hangSec} min={3} max={30}
-            onChange={(e) => { setHangSec(Number(e.target.value)); if (phase === "idle") setRemaining(Number(e.target.value)); }}
-            className="mt-1 w-full rounded-xl border border-ink/10 bg-mist/30 px-3 py-1.5 text-sm outline-none focus:border-pine" />
-        </label>
-        <label className="text-xs text-ink/50">
-          Rest (sec)
-          <input type="number" value={restSec} min={30} max={600}
-            onChange={(e) => setRestSec(Number(e.target.value))}
-            className="mt-1 w-full rounded-xl border border-ink/10 bg-mist/30 px-3 py-1.5 text-sm outline-none focus:border-pine" />
-        </label>
-      </div>
-
-      <div className="flex gap-2">
-        {phase === "idle" ? (
-          <button type="button" onClick={start}
-            className="flex-1 rounded-full bg-pine px-4 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink">
-            Start
-          </button>
-        ) : (
-          <button type="button" onClick={reset}
-            className="flex-1 rounded-full border border-ink/10 px-4 py-2.5 text-sm font-semibold text-ink/60 hover:text-ink transition">
-            Reset
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ── Scale picker (inline, compact) ────────────────────────────────────────────
 
@@ -336,7 +198,11 @@ export function SessionPlayer({ session }: { session: SessionData }) {
                     Start with a short finger activation block before the bigger warm-up. Use the built-in timer and let the beeps cue each switch.
                   </p>
                 </div>
-                <HangTimer />
+                <ClimbTimer
+                  title="Hangboard timer"
+                  description="Customize each section, save your default flow, and run the warm-up without leaving the session."
+                  storageKey="climb:session-hang-timer"
+                />
                 <div className="rounded-[20px] bg-white/80 border border-ink/10 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">2. Advanced warm-up</p>
                   <p className="mt-2 text-base leading-7 text-ink whitespace-pre-line">

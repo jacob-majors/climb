@@ -391,7 +391,7 @@ export function LandingPage() {
           <div className="relative z-10 max-w-2xl pt-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-pine shadow-sm backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" />
-              Training For Comp Climbers
+              Climbing Training App For Comp Climbers
             </div>
 
             <h1
@@ -407,7 +407,7 @@ export function LandingPage() {
               <span className="font-black lowercase tracking-tight text-ink">
                 climb<span className="text-clay">.</span>
               </span>{" "}
-              turns school, work, comps, route logs, recovery, and real calendar gaps into sessions you can actually place, run, and review on your phone.
+              is a climbing training app that turns school, work, comps, route logs, recovery, and real calendar gaps into sessions you can actually place, run, and review on your phone.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -473,10 +473,10 @@ export function LandingPage() {
         <div className="space-y-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">Why It Feels Different</p>
           <h2 className="text-3xl leading-tight text-ink sm:text-4xl" style={{ fontFamily: "Georgia, Times New Roman, serif" }}>
-            The scroll tells the same story the app solves.
+            A comp climbing app that solves the week, not just the workout.
           </h2>
           <p className="text-base leading-7 text-ink/68">
-            Big training apps feel generic because they pretend every athlete has empty evenings and perfect recovery. This one is built around crowded calendars, changing comps, and what actually happened on the wall.
+            Big training apps feel generic because they pretend every athlete has empty evenings and perfect recovery. This climbing training planner is built around crowded calendars, changing comps, and what actually happened on the wall.
           </p>
         </div>
 
@@ -609,6 +609,30 @@ export function LandingPage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-8 lg:px-12">
+        <div className="grid gap-4 lg:grid-cols-3">
+          {[
+            {
+              title: "What is climb.?",
+              body: "climb. is a climbing training app for competition climbers who need weekly planning, timers, and route analysis in one place.",
+            },
+            {
+              title: "Who is it for?",
+              body: "It is built for comp climbers, youth athletes, and performance-focused climbers balancing school, work, practice, and comps.",
+            },
+            {
+              title: "What makes it different?",
+              body: "It combines comp climbing planning, session timing, recovery-aware scheduling, and route-log feedback instead of separating them into different tools.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="rounded-[28px] border border-ink/10 bg-white/80 p-5 shadow-sm backdrop-blur">
+              <h3 className="text-lg font-semibold text-ink">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-ink/66">{item.body}</p>
+            </div>
+          ))}
         </div>
       </section>
     </div>

@@ -1,6 +1,7 @@
 import { Discipline, ExperienceLevel, RecoveryQuality, StressLevel } from "@prisma/client";
 import { upsertProfileAction } from "@/app/actions";
 import Link from "next/link";
+import { TimerReset } from "lucide-react";
 import { Field, FormGrid, inputClassName, textareaClassName } from "@/components/forms";
 import { SectionHeading } from "@/components/section-heading";
 import { Card } from "@/components/ui/card";
@@ -82,6 +83,25 @@ export default async function ProfilePage() {
               ) : null}
             </div>
           ))}
+        </div>
+      </Card>
+
+      <Card className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">Quick access</p>
+            <p className="mt-1 text-lg font-semibold text-ink">Jump straight to the timer</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
+              Open the standalone climbing timer from your profile, customize section lengths and rounds, and keep those settings saved for the next session.
+            </p>
+          </div>
+          <Link
+            href="/timer"
+            className="inline-flex items-center gap-2 rounded-full border border-pine/15 bg-pine px-4 py-2.5 text-sm font-semibold text-chalk transition hover:bg-ink"
+          >
+            <TimerReset className="h-4 w-4" />
+            Open timer
+          </Link>
         </div>
       </Card>
 
