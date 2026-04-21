@@ -2,7 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CalendarClock, ChartNoAxesCombined, Check, Route, Sparkles, WandSparkles } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  ChartNoAxesCombined,
+  Check,
+  Route,
+  Sparkles,
+  WandSparkles,
+  TimerReset,
+  BrainCircuit,
+  ShieldCheck,
+  Orbit,
+} from "lucide-react";
 import { ProgressRing } from "@/components/progress-ring";
 
 function clamp(value: number, min = 0, max = 1) {
@@ -46,6 +58,7 @@ function LeadFallGraphic({
   const belayerLean = normalized > 0.66 ? 1 + (normalized - 0.66) * 0.36 : 1;
   const chalkOpacity = clamp((normalized - 0.12) / 0.24);
   const blurStrength = mode === "backdrop" ? 1.4 + normalized * 1.8 : 0;
+  const telemetryPulse = 0.35 + normalized * 0.65;
 
   const ropePath = `M 276 380 C 274 328, ${260 + normalized * 24} ${286 + normalized * 18}, ${climberX + 2} ${climberY + 10}`;
   const wallDots = useMemo(
@@ -118,12 +131,20 @@ function LeadFallGraphic({
   return (
     <div className="sticky top-20 overflow-hidden rounded-[32px] border border-ink/10 bg-[linear-gradient(180deg,#fef6e6_0%,#f3ebda_46%,#e8dfcf_100%)] shadow-[0_28px_90px_rgba(16,20,24,0.12)]">
       <div className="border-b border-ink/8 px-5 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">Scroll The Fall</p>
-        <p className="mt-1 text-sm text-ink/60">A lead session turning into a catch, then a plan.</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">Scroll The Fall</p>
+            <p className="mt-1 text-sm text-ink/60">A lead session turning into a catch, then a plan.</p>
+          </div>
+          <div className="rounded-full border border-pine/15 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">
+            live model
+          </div>
+        </div>
       </div>
 
       <div className="relative h-[440px]">
         <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_50%_10%,rgba(255,255,255,0.85),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(16,20,24,0.05)_50%,transparent_100%),linear-gradient(rgba(16,20,24,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(16,20,24,0.04)_1px,transparent_1px)] bg-[length:100%_100%,100%_28px,28px_100%]" />
         <svg viewBox="0 0 400 440" className="h-full w-full">
           <defs>
             <linearGradient id="wall" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -170,6 +191,19 @@ function LeadFallGraphic({
           </text>
         </svg>
 
+        <div className="absolute left-4 top-4 max-w-[10rem] rounded-[22px] border border-white/45 bg-white/70 px-3 py-3 backdrop-blur">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/45">Wall read</p>
+          <p className="mt-2 text-sm font-semibold text-ink">
+            {normalized < 0.42 ? "Commit high. Clip clean." : normalized < 0.78 ? "Foot cut detected." : "Catch logged. Build next week from it."}
+          </p>
+        </div>
+
+        <div className="absolute right-4 top-4 rounded-[22px] border border-white/45 bg-white/72 px-3 py-3 backdrop-blur">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/45">Signal</p>
+          <p className="mt-2 text-xl font-black text-ink">{Math.round(64 + normalized * 31)}</p>
+          <p className="text-[11px] text-ink/45">power-endurance</p>
+        </div>
+
         <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between rounded-[24px] border border-white/40 bg-white/65 px-4 py-3 backdrop-blur">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-pine">Live Story</p>
@@ -187,8 +221,154 @@ function LeadFallGraphic({
             <div className="h-full rounded-full bg-clay transition-all duration-150" style={{ width: `${normalized * 100}%` }} />
           </div>
         </div>
+
+        <div className="absolute bottom-24 right-4 rounded-full border border-clay/15 bg-white/72 px-3 py-1.5 backdrop-blur">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-clay" style={{ opacity: telemetryPulse }} />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-clay">telemetry active</span>
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+function HeroSignalCard({
+  eyebrow,
+  title,
+  body,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-[26px] border border-white/45 bg-white/62 p-4 shadow-sm backdrop-blur">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-pine/70">{eyebrow}</p>
+      <p className="mt-2 text-sm font-semibold text-ink">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-ink/64">{body}</p>
+    </div>
+  );
+}
+
+function StoryGridSection() {
+  const cards = [
+    {
+      eyebrow: "Calendar engine",
+      title: "The week starts with reality",
+      body: "School, team practice, work shifts, travel, and comps get loaded first so the plan grows around real time instead of fantasy availability.",
+      accent: "bg-[#f5ede1]",
+    },
+    {
+      eyebrow: "Route memory",
+      title: "The wall keeps voting",
+      body: "Every route log nudges the next sessions: pump, hesitation, foot errors, confidence drops, and movement patterns all feed back into the plan.",
+      accent: "bg-[#edf4f0]",
+    },
+    {
+      eyebrow: "Session runner",
+      title: "The workout is built to be used mid-session",
+      body: "Open the plan, run the timer, adjust the block, mark fatigue, and step into route analysis without losing context.",
+      accent: "bg-[#faf4eb]",
+    },
+    {
+      eyebrow: "Comp mode",
+      title: "A comp countdown that actually changes behavior",
+      body: "Taper notes, recovery pressure, practice load, and route feedback all shift as the event gets closer, so the plan becomes sharper, not just fuller.",
+      accent: "bg-[#f2efe8]",
+    },
+  ];
+
+  return (
+    <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-8 lg:px-12">
+      <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="space-y-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">How The System Thinks</p>
+          <h2 className="text-3xl leading-tight text-ink sm:text-5xl" style={{ fontFamily: "Georgia, Times New Roman, serif" }}>
+            Not a template.
+            <span className="block text-clay">More like a climbing operating system.</span>
+          </h2>
+          <p className="max-w-xl text-base leading-7 text-ink/68">
+            The best part of climb. is not one feature. It is the way the schedule, session runner, route logs, and comp prep all stay in conversation with each other.
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {cards.map((card, index) => (
+            <div
+              key={card.title}
+              className={`rounded-[30px] border border-ink/10 ${card.accent} p-5 shadow-[0_18px_50px_rgba(16,20,24,0.08)]`}
+              style={{ transform: `translateY(${index % 2 === 0 ? 0 : 22}px)` }}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-pine/72">{card.eyebrow}</p>
+              <h3 className="mt-3 text-xl font-semibold leading-tight text-ink">{card.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-ink/66">{card.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TrainingLoopSection() {
+  const phases = [
+    {
+      title: "Prime",
+      body: "The app opens with the exact session block that fits the day, not a pile of notes to interpret.",
+      icon: TimerReset,
+    },
+    {
+      title: "Perform",
+      body: "Warm-up, work blocks, timer cues, and how-tiring tags stay visible while you are actually climbing.",
+      icon: Orbit,
+    },
+    {
+      title: "Reflect",
+      body: "Route logging catches the mistakes and trends while they are still fresh, before memory gets blurry.",
+      icon: BrainCircuit,
+    },
+    {
+      title: "Rebuild",
+      body: "The next week shifts from those signals so the plan keeps learning instead of repeating itself.",
+      icon: ShieldCheck,
+    },
+  ];
+
+  return (
+    <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-8 lg:px-12">
+      <div className="rounded-[38px] border border-ink/10 bg-[linear-gradient(180deg,#fffdf8_0%,#f4eddf_100%)] p-6 shadow-[0_26px_70px_rgba(16,20,24,0.08)] sm:p-8">
+        <div className="grid gap-8 lg:grid-cols-[0.84fr_1.16fr]">
+          <div className="space-y-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">The Loop</p>
+            <h2 className="text-3xl leading-tight text-ink sm:text-4xl" style={{ fontFamily: "Georgia, Times New Roman, serif" }}>
+              A training flow that feels alive while you use it.
+            </h2>
+            <p className="text-base leading-7 text-ink/68">
+              Most apps stop at planning. climb. keeps going through the session, into the route log, and back into the next plan so the whole thing behaves like one loop.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {phases.map((phase, index) => {
+              const Icon = phase.icon;
+              return (
+                <div key={phase.title} className="rounded-[28px] border border-ink/10 bg-white/80 p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pine/10 text-pine">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/35">0{index + 1}</span>
+                  </div>
+                  <p className="mt-4 text-lg font-semibold text-ink">{phase.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-ink/66">{phase.body}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -388,142 +568,126 @@ export function LandingPage() {
         <LeadFallGraphic progress={progress} mode="backdrop" />
 
         <div className="relative mx-auto max-w-7xl">
-          <div className="relative z-10 max-w-2xl pt-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-pine shadow-sm backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5" />
-              Climbing Training App For Comp Climbers
-            </div>
-
-            <h1
-              className="mt-6 max-w-4xl text-5xl leading-[0.92] text-ink sm:text-6xl lg:text-7xl"
-              style={{ fontFamily: "Georgia, Times New Roman, serif" }}
-            >
-              Plan the week
-              <span className="block text-clay">before the whip</span>
-              <span className="block">decides it for you.</span>
-            </h1>
-
-            <p className="mt-6 max-w-xl text-base leading-7 text-ink/72 sm:text-lg">
-              <span className="font-black lowercase tracking-tight text-ink">
-                climb<span className="text-clay">.</span>
-              </span>{" "}
-              is a climbing training app that turns school, work, comps, route logs, recovery, and real calendar gaps into sessions you can actually place, run, and review on your phone.
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/sign-up"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-chalk shadow-[0_18px_45px_rgba(16,20,24,0.2)] transition hover:bg-pine"
-              >
-                Start Building Your Week
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/sign-in"
-                className="inline-flex items-center justify-center rounded-full border border-ink/12 bg-white/75 px-6 py-3 text-sm font-semibold text-ink backdrop-blur transition hover:border-pine/40"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/pricing"
-                className="inline-flex items-center justify-center rounded-full border border-clay/20 bg-clay/10 px-6 py-3 text-sm font-semibold text-clay transition hover:border-clay/40"
-              >
-                View Pricing
-              </Link>
-            </div>
-
-            <div className="mt-10 grid gap-3 sm:grid-cols-3">
-              {[
-                ["One place", "Calendar, comps, school, work, and route data stay in the same plan."],
-                ["Run the session", "Open the workout, warm up, train, and log the climb without bouncing around."],
-                ["Built for the gym", "Quick enough to check between burns, not just later at your desk."],
-              ].map(([title, body]) => (
-                <div key={title} className="rounded-[28px] border border-white/45 bg-white/60 p-4 shadow-sm backdrop-blur">
-                  <p className="text-sm font-semibold text-ink">{title}</p>
-                  <p className="mt-2 text-sm leading-6 text-ink/65">{body}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 rounded-[30px] border border-white/45 bg-white/65 p-4 shadow-sm backdrop-blur">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-pine/70">A day in climb.</p>
-              <div className="mt-4 grid gap-3">
-                {[
-                  ["4:00PM", "Primer session", "Open the plan and start the workout."],
-                  ["6:00PM", "Team practice", "The calendar stays tied to training load."],
-                  ["After", "Route log + coach recap", "Review the climb and roll it into the next plan."],
-                ].map(([time, title, body], index) => (
-                  <div key={title} className="grid grid-cols-[64px_1fr] gap-3 rounded-[24px] bg-white/80 px-4 py-3">
-                    <div className="text-xs font-semibold text-ink/45">{time}</div>
-                    <div>
-                      <p className="text-sm font-semibold text-ink">{title}</p>
-                      <p className="mt-1 text-sm text-ink/62">{body}</p>
-                    </div>
-                    {index < 2 ? <div className="col-span-2 h-px bg-ink/6" /> : null}
-                  </div>
-                ))}
+          <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_440px]">
+            <div className="relative z-10 max-w-3xl pt-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-pine shadow-sm backdrop-blur">
+                <Sparkles className="h-3.5 w-3.5" />
+                Climbing Training App For Comp Climbers
               </div>
+
+              <h1
+                className="mt-6 max-w-5xl text-5xl leading-[0.9] text-ink sm:text-6xl lg:text-7xl"
+                style={{ fontFamily: "Georgia, Times New Roman, serif" }}
+              >
+                Plan the week.
+                <span className="block text-clay">Catch the fall.</span>
+                <span className="block">Train the pattern.</span>
+              </h1>
+
+              <p className="mt-6 max-w-2xl text-base leading-7 text-ink/72 sm:text-lg">
+                <span className="font-black lowercase tracking-tight text-ink">
+                  climb<span className="text-clay">.</span>
+                </span>{" "}
+                turns school, work, comps, route logs, recovery, and real calendar gaps into a climbing system that actually adapts. It plans the week, runs the session, remembers what happened on the wall, and feeds it back into what comes next.
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/sign-up"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-chalk shadow-[0_18px_45px_rgba(16,20,24,0.2)] transition hover:bg-pine"
+                >
+                  Start Building Your Week
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/sign-in"
+                  className="inline-flex items-center justify-center rounded-full border border-ink/12 bg-white/75 px-6 py-3 text-sm font-semibold text-ink backdrop-blur transition hover:border-pine/40"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center justify-center rounded-full border border-clay/20 bg-clay/10 px-6 py-3 text-sm font-semibold text-clay transition hover:border-clay/40"
+                >
+                  View Pricing
+                </Link>
+              </div>
+
+              <div className="mt-10 grid gap-3 sm:grid-cols-3">
+                <HeroSignalCard eyebrow="Source of truth" title="One plan surface" body="Calendar, comps, school, work, and route signals stay inside the same model." />
+                <HeroSignalCard eyebrow="Session runner" title="Use it mid-climb" body="Open the block, warm up, train, rate the effort, and move straight into route logging." />
+                <HeroSignalCard eyebrow="Phone speed" title="Fast in the gym" body="Built to be checked with chalky hands between burns, not only later at your desk." />
+              </div>
+
+              <div className="mt-8 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-[32px] border border-white/45 bg-white/68 p-5 shadow-sm backdrop-blur">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-pine/70">A day in climb.</p>
+                    <div className="rounded-full border border-ink/10 bg-white/70 px-3 py-1 text-[11px] font-semibold text-ink/50">live flow</div>
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    {[
+                      ["4:00PM", "Primer session", "Open the plan and run the exact block for the day."],
+                      ["6:00PM", "Team practice", "Practice load stays connected to the rest of the week."],
+                      ["After", "Route log + next-week signal", "The app catches what happened and turns it into the next adjustment."],
+                    ].map(([time, title, body]) => (
+                      <div key={title} className="grid grid-cols-[72px_1fr] gap-3 rounded-[24px] bg-white/82 px-4 py-3">
+                        <div className="text-xs font-semibold text-ink/45">{time}</div>
+                        <div>
+                          <p className="text-sm font-semibold text-ink">{title}</p>
+                          <p className="mt-1 text-sm text-ink/62">{body}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[32px] border border-white/45 bg-[#fbf6eb]/88 p-5 shadow-sm backdrop-blur">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-pine/70">Live signals</p>
+                  <div className="mt-4 space-y-3">
+                    {[
+                      "calendar window found",
+                      "team practice counted as load",
+                      "route hesitation flagged",
+                      "power-endurance trend rising",
+                    ].map((item, index) => (
+                      <div key={item} className="flex items-center gap-3 rounded-[20px] bg-white/80 px-3 py-3">
+                        <span className={`h-2.5 w-2.5 rounded-full ${index === 2 ? "bg-clay" : "bg-pine"}`} />
+                        <p className="text-sm font-medium text-ink/74">{item}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative hidden lg:block">
+              <LeadFallGraphic progress={progress} />
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 pb-24 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-12">
-        <div className="space-y-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">Why It Feels Different</p>
-          <h2 className="text-3xl leading-tight text-ink sm:text-4xl" style={{ fontFamily: "Georgia, Times New Roman, serif" }}>
-            A comp climbing app that solves the week, not just the workout.
-          </h2>
-          <p className="text-base leading-7 text-ink/68">
-            Big training apps feel generic because they pretend every athlete has empty evenings and perfect recovery. This climbing training planner is built around crowded calendars, changing comps, and what actually happened on the wall.
-          </p>
-        </div>
+      <div className="px-4 pb-24 sm:px-8 lg:hidden lg:px-12">
+        <LeadFallGraphic progress={progress} />
+      </div>
 
-        <div className="grid gap-4">
-          {[
-            {
-              eyebrow: "1. Load the week",
-              title: "Pull in real life first",
-              body: "School, work at the gym, team practices, holidays, and competition dates shape the plan before any workout gets suggested.",
-            },
-            {
-              eyebrow: "2. Place the sessions",
-              title: "Drag workouts into real windows",
-              body: "Suggested sessions land beside actual open time blocks, so the plan can fit Tuesday after school or a short Friday reset instead of pretending every day is the same.",
-            },
-            {
-              eyebrow: "3. Run the day",
-              title: "From timer to route log",
-              body: "Open a session on your phone, start the hangboard timer, move through the warm-up and main set, then roll straight into route analysis with the session context already there.",
-            },
-          ].map((item, index) => (
-            <div
-              key={item.title}
-              className="rounded-[30px] border border-ink/10 bg-white/80 p-5 shadow-[0_18px_50px_rgba(16,20,24,0.08)] backdrop-blur"
-              style={{ transform: `translateY(${Math.max(0, 18 - index * 6)}px)` }}
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-clay">{item.eyebrow}</p>
-              <h3 className="mt-2 text-xl font-semibold text-ink">{item.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-ink/66">{item.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <StoryGridSection />
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 pb-24 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:px-12">
         <div className="space-y-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">On Your Phone</p>
           <h2 className="text-3xl leading-tight text-ink sm:text-4xl" style={{ fontFamily: "Georgia, Times New Roman, serif" }}>
-            Open the session. Run the timer. Finish and log the routes.
+            The session runner feels like gear, not paperwork.
           </h2>
           <p className="text-base leading-7 text-ink/68">
-            The app should feel fast when you are tired, rushing between school and practice, or standing under the wall with chalk on your hands. The whole flow is designed around that moment.
+            The product has to be good in the worst moment to use software: tired, rushing, under the wall, trying to remember what changed. So the training flow is short, tactile, and built for action first.
           </p>
           <div className="grid gap-3">
             {[
-              { icon: CalendarClock, title: "Scheduled around real life", body: "Sessions are placed into actual windows instead of pretending you have three empty hours every day." },
-              { icon: ChartNoAxesCombined, title: "Adapts as you log", body: "Recovery, route trends, and what you actually completed can shape the next week." },
-              { icon: Route, title: "Built for climbing detail", body: "Warm-up, main set, and route analysis stay connected instead of living in separate tools." },
+              { icon: CalendarClock, title: "Scheduled around real life", body: "Sessions sit in real windows instead of pretending every day has an empty three-hour block." },
+              { icon: ChartNoAxesCombined, title: "Adjusts as you log", body: "Recovery, route trends, and what you actually completed can bend the next week in real time." },
+              { icon: Route, title: "Climbing details stay connected", body: "Warm-up, main set, timer, fatigue rating, and route analysis all live in one flow." },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -561,6 +725,19 @@ export function LandingPage() {
                 </p>
               </div>
 
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {[
+                  ["Focus", "PE"],
+                  ["Load", "8"],
+                  ["Feel", "mod"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[18px] border border-ink/8 bg-white/85 px-3 py-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink/35">{label}</p>
+                    <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
+                  </div>
+                ))}
+              </div>
+
               <div className="mt-4 space-y-3">
                 {[
                   ["1", "Hangboard warm-up", "Short beeping timer to wake up fingers without burning them."],
@@ -584,6 +761,8 @@ export function LandingPage() {
         </div>
       </section>
 
+      <TrainingLoopSection />
+
       <RingsFormulaSection />
 
       <PricingSection />
@@ -594,10 +773,11 @@ export function LandingPage() {
           <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <h2 className="text-3xl leading-tight text-chalk sm:text-4xl" style={{ fontFamily: "Georgia, Times New Roman, serif" }}>
-                Make the landing page the only chaotic part of the app.
+                Chaotic on the wall.
+                <span className="block text-[#f6d6c7]">Calm everywhere else.</span>
               </h2>
               <p className="mt-3 text-base leading-7 text-chalk/72">
-                Once you’re inside, everything should feel calmer: better sessions, cleaner scheduling, faster logging, smarter adjustments.
+                Once you’re inside, the product should slow the noise down: cleaner sessions, better timing, faster logging, and a week that actually reacts to what happened.
               </p>
             </div>
             <Link
