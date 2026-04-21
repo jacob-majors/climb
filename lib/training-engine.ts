@@ -78,6 +78,43 @@ function describeCalendarEntries(entries: CalendarEntry[]): string {
   return entries.map((e) => `${e.title}${e.time ? ` (${e.time})` : ""}`).join(", ");
 }
 
+function clampDuration(minutes: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, minutes));
+}
+
+function targetDurationForSessionType(sessionType: SessionType, availableMinutes: number) {
+  switch (sessionType) {
+    case SessionType.FULL_REST:
+      return 0;
+    case SessionType.ACTIVE_RECOVERY:
+      return clampDuration(availableMinutes, 20, 35);
+    case SessionType.MOBILITY:
+      return clampDuration(availableMinutes, 25, 40);
+    case SessionType.CORE:
+      return clampDuration(availableMinutes, 40, 60);
+    case SessionType.ANTAGONIST_STRENGTH:
+      return clampDuration(availableMinutes, 45, 70);
+    case SessionType.FOOTWORK_DRILLS:
+    case SessionType.TECHNIQUE_DRILLS:
+      return clampDuration(availableMinutes, 50, 80);
+    case SessionType.ARC:
+      return clampDuration(availableMinutes, 45, 75);
+    case SessionType.TEAM_PRACTICE:
+      return 120;
+    case SessionType.COMPETITION:
+      return clampDuration(availableMinutes, 120, 240);
+    case SessionType.LIMIT_BOULDERING:
+    case SessionType.PROJECTING:
+    case SessionType.LEAD_ENDURANCE:
+    case SessionType.POWER_ENDURANCE:
+    case SessionType.FINGER_STRENGTH:
+    case SessionType.RECRUITMENT_POWER:
+      return clampDuration(availableMinutes, 75, 110);
+    default:
+      return clampDuration(availableMinutes, 45, 90);
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Stress + recovery
 // ──────────────────────────────────────────────────────────────────────────────
@@ -415,6 +452,69 @@ function buildSession(
   };
 }
 
+function buildPracticePrimer(
+  dayIndex: number,
+  entries: CalendarEntry[],
+): PlannedSessionDraft | null {
+  const practiceText = entries
+    .filter((entry) => entry.type === "practice")
+    .map((entry) => [entry.title, entry.notes].filter(Boolean).join(" "))
+    .join(" ")
+    .toLowerCase();
+
+  if (!practiceText || !(dayIndex === 1 || dayIndex === 4)) {
+    return null;
+  }
+
+  const basePrimer = {
+    dayIndex,
+    dayLabel: dayNames[dayIndex],
+    scheduledWindowLabel: "Pre-practice",
+    scheduledStartTime: "16:00",
+    scheduledEndTime: "17:45",
+    sessionType: SessionType.TECHNIQUE_DRILLS,
+    durationMinutes: 105,
+    intensity: IntensityLevel.MODERATE,
+    loadScore: 4,
+  } satisfies Omit<PlannedSessionDraft, "title" | "warmup" | "mainWork" | "cooldown" | "recoveryNotes" | "whyChosen">;
+
+  if (practiceText.includes("power endurance")) {
+    return {
+      ...basePrimer,
+      title: "Lead power-endurance primer",
+      warmup:
+        "4:00-4:20 PM: easy movement, shoulder activation, forearm prep, and 2 easy lead routes. Finish with one round of clip-and-shake drills on the wall.",
+      mainWork:
+        "4:20-5:20 PM: do 2-3 controlled power-endurance primers before practice. Option A: 2 linked routes around onsight/flash level with 8-10 minutes rest. Option B: 3 x 4-minute continuous climbing intervals on lead terrain with 4 minutes easy rest. Stay smooth and stop before you get wrecked. 5:20-5:35 PM: one short tactical set of clipping under pump, then sit down, drink, and reset before practice.",
+      cooldown:
+        "5:35-5:45 PM: walk, breathe, eat a quick carb snack, and show up to practice feeling switched on rather than tired.",
+      recoveryNotes:
+        "This is a primer, not a second full practice. If forearms start feeling heavy early, cut a set and save it for team practice.",
+      whyChosen:
+        "Team practice today centers on power endurance, so this primer wakes up pacing, clipping, and pump-management without burning the match before practice starts.",
+    };
+  }
+
+  if (practiceText.includes("endurance") || practiceText.includes("technique")) {
+    return {
+      ...basePrimer,
+      title: "Movement and endurance primer",
+      warmup:
+        "4:00-4:20 PM: easy movement, mobility, and two relaxed lead laps with quiet feet and calm clipping.",
+      mainWork:
+        "4:20-5:15 PM: 2 rounds of moderate continuous climbing or linked route sections focused on smooth pacing, precise feet, and relaxed breathing. 5:15-5:35 PM: one tactical drill set on clipping positions or shake-outs depending on what practice is emphasizing.",
+      cooldown:
+        "5:35-5:45 PM: easy walk, water, and a quick snack so practice still feels like the main event.",
+      recoveryNotes:
+        "Keep this controlled and technical. The goal is rhythm and feel, not arriving at practice already pumped.",
+      whyChosen:
+        "The practice theme later today is endurance and technique, so this earlier block gets the movement patterns online while keeping the real quality for team practice.",
+    };
+  }
+
+  return null;
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Main plan generator
 // ──────────────────────────────────────────────────────────────────────────────
@@ -585,11 +685,7 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
     })();
 
     // Duration calculation
-    let duration = availability[dayLabel] ?? 60;
-    if (sessionType === SessionType.FULL_REST) duration = 0;
-    if (sessionType === SessionType.ACTIVE_RECOVERY) duration = Math.min(duration, 35);
-    if (sessionType === SessionType.MOBILITY) duration = Math.min(duration, 40);
-    if (sessionType === SessionType.TEAM_PRACTICE) duration = 120;
+    let duration = targetDurationForSessionType(sessionType, availability[dayLabel] ?? 60);
 
     // Calendar pressure trims duration
     if (
@@ -617,6 +713,7 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
     ) {
       duration = applyMesocycleVolumeModifier(duration, mesocycleCtx);
     }
+    duration = targetDurationForSessionType(sessionType, duration);
 
     const sessionPersonCtx: PersonalizationContext = {
       ...personCtx,
@@ -667,11 +764,22 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
     return drafted;
   });
 
+  const primerSessions = sessions
+    .map((session) => (session.sessionType === SessionType.TEAM_PRACTICE ? buildPracticePrimer(session.dayIndex, calendarByDay[session.dayLabel] ?? []) : null))
+    .filter((session): session is PlannedSessionDraft => Boolean(session));
+
+  const allSessions = [...sessions, ...primerSessions].sort((a, b) => {
+    if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+    const aStart = a.scheduledStartTime ?? "23:59";
+    const bStart = b.scheduledStartTime ?? "23:59";
+    return aStart.localeCompare(bStart);
+  });
+
   // ── Load score ─────────────────────────────────────────────────────────────
   const loadPenalty = stressAdjustment * 2 + (compCtx.phase === "taper" ? 4 : 0);
   const totalLoadScore = Math.max(
     8,
-    sessions.reduce((sum, s) => sum + s.loadScore, 0) - loadPenalty,
+    allSessions.reduce((sum, s) => sum + s.loadScore, 0) - loadPenalty,
   );
 
   // ── Text assembly ──────────────────────────────────────────────────────────
@@ -731,6 +839,6 @@ export function generateTrainingPlan(input: EngineInput): PlanDraft {
       : `No immediate competition — this week leans toward development. ${mesocycleCtx.description}`,
     pushBackoffNotes: pushBackoffText,
     totalLoadScore,
-    sessions,
+    sessions: allSessions,
   };
 }

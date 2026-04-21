@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarClock, ChartNoAxesCombined, Route, Sparkles } from "lucide-react";
 
 function clamp(value: number, min = 0, max = 1) {
   return Math.min(max, Math.max(min, value));
@@ -188,6 +188,18 @@ export function LandingPage() {
                 </div>
               ))}
             </div>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <div className="animate-float-slow rounded-full border border-white/45 bg-white/70 px-4 py-2 text-xs font-semibold text-ink/70 shadow-sm backdrop-blur">
+                Tuesday • Primer 4:00PM-5:45PM
+              </div>
+              <div className="animate-drift rounded-full border border-pine/15 bg-pine/10 px-4 py-2 text-xs font-semibold text-pine shadow-sm">
+                Team practice • 6:00PM-8:00PM
+              </div>
+              <div className="animate-float-slow rounded-full border border-clay/15 bg-clay/10 px-4 py-2 text-xs font-semibold text-clay shadow-sm">
+                Route log opens after session
+              </div>
+            </div>
           </div>
 
           <LeadFallGraphic progress={progress} />
@@ -233,6 +245,80 @@ export function LandingPage() {
               <p className="mt-3 text-sm leading-6 text-ink/66">{item.body}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl gap-8 px-4 pb-24 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:px-12">
+        <div className="space-y-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-pine/70">On Your Phone</p>
+          <h2 className="text-3xl leading-tight text-ink sm:text-4xl" style={{ fontFamily: "Georgia, Times New Roman, serif" }}>
+            Open the session. Run the timer. Finish and log the routes.
+          </h2>
+          <p className="text-base leading-7 text-ink/68">
+            The app should feel fast when you are tired, rushing between school and practice, or standing under the wall with chalk on your hands. The whole flow is designed around that moment.
+          </p>
+          <div className="grid gap-3">
+            {[
+              { icon: CalendarClock, title: "Scheduled around real life", body: "Sessions are placed into actual windows instead of pretending you have three empty hours every day." },
+              { icon: ChartNoAxesCombined, title: "Adapts as you log", body: "Recovery, route trends, and what you actually completed can shape the next week." },
+              { icon: Route, title: "Built for climbing detail", body: "Warm-up, main set, and route analysis stay connected instead of living in separate tools." },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="flex gap-3 rounded-[26px] border border-ink/10 bg-white/80 p-4 shadow-sm backdrop-blur">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pine/10 text-pine">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-ink">{item.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-ink/65">{item.body}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="relative mx-auto w-full max-w-md">
+          <div className="absolute -left-6 top-10 h-20 w-20 rounded-full bg-clay/10 blur-2xl" />
+          <div className="absolute -right-8 top-32 h-28 w-28 rounded-full bg-pine/10 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[40px] border border-ink/10 bg-[linear-gradient(180deg,#fffdf8_0%,#f5efe3_100%)] p-3 shadow-[0_32px_90px_rgba(16,20,24,0.14)]">
+            <div className="rounded-[32px] border border-ink/10 bg-[#fcfaf4] p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-pine/70">Next Session</p>
+                  <p className="mt-1 text-lg font-semibold text-ink">Lead power-endurance primer</p>
+                </div>
+                <div className="rounded-full bg-clay/10 px-3 py-1 text-xs font-semibold text-clay">Tomorrow</div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] border border-pine/10 bg-pine/5 p-4">
+                <p className="text-sm font-semibold text-ink">Tuesday • 4:00PM-5:45PM</p>
+                <p className="mt-2 text-sm leading-6 text-ink/68">
+                  Activation, linked lead intervals, clipping under pump, then reset for team practice.
+                </p>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {[
+                  ["1", "Hangboard warm-up", "Short beeping timer to wake up fingers without burning them."],
+                  ["2", "Advanced warm-up", "Progressive lead movement and clip-and-shake rehearsal."],
+                  ["3", "Main activity", "Controlled power-endurance primer based on tonight’s practice theme."],
+                  ["4", "After session", "Route analysis opens with session context already filled in."],
+                ].map(([step, title, body]) => (
+                  <div key={title} className="flex gap-3 rounded-[22px] border border-ink/8 bg-white/80 p-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-ink text-xs font-bold text-chalk">
+                      {step}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-ink">{title}</p>
+                      <p className="mt-1 text-sm leading-6 text-ink/62">{body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
