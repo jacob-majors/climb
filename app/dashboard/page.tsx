@@ -448,33 +448,59 @@ export default async function DashboardPage() {
 
   const schedule = athlete.scheduleConstraint;
   const recovery = getRecoveryBand(schedule);
-  const currentPlan = selectCurrentWeekPlan(athlete.trainingPlans);
-  const sessionEntry = getUpcomingSession(currentPlan, schedule.trainingAvailability);
-  const todayItems = buildTodayItems(schedule);
-  const nextComp = getNextCompetition(athlete.competitionEvents);
-  const daysUntilComp = nextComp ? daysToCompetition(nextComp.eventDate) : null;
-  const focusAreas = parseFocusAreas(currentPlan?.keyFocusAreas);
-  const adherenceSummary = buildAdherenceSummary(currentPlan, schedule.trainingAvailability);
-  const compPrepSummary =
+  let currentPlan = selectCurrentWeekPlan(athlete.trainingPlans);
+  let sessionEntry = getUpcomingSession(currentPlan, schedule.trainingAvailability);
+  let todayItems: TodayItem[] = [];
+  let nextComp = getNextCompetition(athlete.competitionEvents);
+  let daysUntilComp = nextComp ? daysToCompetition(nextComp.eventDate) : null;
+  let focusAreas = parseFocusAreas(currentPlan?.keyFocusAreas);
+  let adherenceSummary = buildAdherenceSummary(currentPlan, schedule.trainingAvailability);
+  let compPrepSummary =
     currentPlan?.compPrepNotes ||
     currentPlan?.pushBackoffNotes ||
     currentPlan?.recoveryNotes ||
     currentPlan?.explanation ||
     null;
-  const upcomingItems = buildUpcomingItems({
-    latestPlan: currentPlan,
-    schedule,
-    competitions: athlete.competitionEvents,
-  });
-  const weekSessions =
-    currentPlan?.sessions.map((session) => {
-      const entry = getSessionEntry(session, currentPlan.startDate, schedule.trainingAvailability);
-      return {
-        ...entry,
-        strain: calculateSessionStrain(session),
-        tryHard: calculateSessionTryHard(session),
-      };
-    }) ?? [];
+  let upcomingItems: UpcomingItem[] = [];
+  let weekSessions:
+    Array<ReturnType<typeof getSessionEntry> & { strain: number; tryHard: number }> = [];
+
+  try {
+    todayItems = buildTodayItems(schedule);
+    upcomingItems = buildUpcomingItems({
+      latestPlan: currentPlan,
+      schedule,
+      competitions: athlete.competitionEvents,
+    });
+    if (currentPlan) {
+      const plan = currentPlan;
+      weekSessions = plan.sessions.map((session) => {
+        const entry = getSessionEntry(session, plan.startDate, schedule.trainingAvailability);
+        return {
+          ...entry,
+          strain: calculateSessionStrain(session),
+          tryHard: calculateSessionTryHard(session),
+        };
+      });
+    }
+  } catch (error) {
+    console.error("Dashboard derived-data fallback:", error);
+    currentPlan = currentPlan ?? undefined;
+    sessionEntry = getUpcomingSession(currentPlan, schedule.trainingAvailability);
+    nextComp = getNextCompetition(athlete.competitionEvents);
+    daysUntilComp = nextComp ? daysToCompetition(nextComp.eventDate) : null;
+    focusAreas = parseFocusAreas(currentPlan?.keyFocusAreas);
+    adherenceSummary = buildAdherenceSummary(currentPlan, schedule.trainingAvailability);
+    compPrepSummary =
+      currentPlan?.compPrepNotes ||
+      currentPlan?.pushBackoffNotes ||
+      currentPlan?.recoveryNotes ||
+      currentPlan?.explanation ||
+      null;
+    todayItems = [];
+    upcomingItems = [];
+    weekSessions = [];
+  }
   const hasDueSessions = Boolean(adherenceSummary?.dueSessionCount);
   const progressHeadline =
     adherenceSummary && !hasDueSessions && sessionEntry ? `First checkmark: ${sessionEntry.session.title}` : adherenceSummary?.headline;
@@ -497,12 +523,25 @@ export default async function DashboardPage() {
     : sessionEntry
       ? `${sessionEntry.session.loadScore}`
       : "--";
-  const peakForecast = buildPeakForecast({
-    schedule,
-    competitions: athlete.competitionEvents,
-    sessions: currentPlan?.sessions ?? [],
-    planStartDate: currentPlan?.startDate,
-  });
+  let peakForecast: ReturnType<typeof buildPeakForecast> = {
+    predictedPeakDate: currentPlan?.startDate ?? new Date(),
+    predictedPeakLabel: currentPlan?.startDate ? format(currentPlan.startDate, "MMM d, yyyy") : format(new Date(), "MMM d, yyyy"),
+    confidence: 0,
+    peakScore: 0,
+    rationale: "Peak forecast is temporarily unavailable.",
+    series: [],
+  };
+
+  try {
+    peakForecast = buildPeakForecast({
+      schedule,
+      competitions: athlete.competitionEvents,
+      sessions: currentPlan?.sessions ?? [],
+      planStartDate: currentPlan?.startDate,
+    });
+  } catch (error) {
+    console.error("Dashboard peak forecast fallback:", error);
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
