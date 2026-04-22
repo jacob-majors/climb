@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Maximize2, X } from "lucide-react";
 
 type TimerPhase = {
   id: string;
@@ -45,8 +46,27 @@ function toneClasses(tone: TimerPhase["tone"], active: boolean) {
   }
 }
 
+// Fullscreen background colors per tone
+const TONE_BG: Record<TimerPhase["tone"], string> = {
+  clay: "#B8481E",
+  pine: "#1E6044",
+  ink: "#111214",
+};
+
+const TONE_ACCENT: Record<TimerPhase["tone"], string> = {
+  clay: "rgba(255,255,255,0.18)",
+  pine: "rgba(255,255,255,0.18)",
+  ink: "rgba(255,255,255,0.12)",
+};
+
 function totalCycleSeconds(config: TimerConfig) {
   return config.phases.reduce((sum, phase) => sum + phase.durationSec, 0);
+}
+
+function haptic(pattern: number | number[]) {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate(pattern);
+  }
 }
 
 export function ClimbTimer({
@@ -62,6 +82,8 @@ export function ClimbTimer({
   const [roundIndex, setRoundIndex] = useState(0);
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [remaining, setRemaining] = useState(defaultConfig.phases[0].durationSec);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [flash, setFlash] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
 
@@ -103,10 +125,15 @@ export function ClimbTimer({
     gain.connect(ctx.destination);
 
     const now = ctx.currentTime;
-    gain.gain.exponentialRampToValueAtTime(0.14, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     oscillator.start(now);
     oscillator.stop(now + duration);
+  }
+
+  function triggerFlash() {
+    setFlash(true);
+    setTimeout(() => setFlash(false), 180);
   }
 
   function resetTimer(nextConfig = config) {
@@ -125,33 +152,37 @@ export function ClimbTimer({
       if (nextPhaseIndex < config.phases.length) {
         const nextPhase = config.phases[nextPhaseIndex];
         setRemaining(nextPhase.durationSec);
-        beep(0.18, nextPhase.tone === "clay" ? 920 : nextPhase.tone === "pine" ? 700 : 560);
+        beep(0.2, nextPhase.tone === "clay" ? 960 : nextPhase.tone === "pine" ? 680 : 560);
+        haptic(150);
+        triggerFlash();
         return nextPhaseIndex;
       }
 
       if (roundIndex + 1 < config.rounds) {
         const firstPhase = config.phases[0];
-        setRoundIndex((value) => value + 1);
+        setRoundIndex((v) => v + 1);
         setRemaining(firstPhase.durationSec);
-        beep(0.2, 760);
+        beep(0.24, 760);
+        haptic([100, 60, 100]);
+        triggerFlash();
         return 0;
       }
 
       clearTimer();
       setIsRunning(false);
       setIsFinished(true);
-      beep(0.28, 1080);
+      beep(0.32, 1100);
+      haptic([200, 100, 200, 100, 400]);
       return currentPhaseIndex;
     });
   }
 
   function startTimer() {
     if (isRunning) return;
-    if (isFinished) {
-      resetTimer();
-    }
+    if (isFinished) resetTimer();
     setIsRunning(true);
-    beep(0.12, 640);
+    beep(0.14, 640);
+    haptic(80);
   }
 
   function pauseTimer() {
@@ -160,9 +191,7 @@ export function ClimbTimer({
   }
 
   function skipPhase() {
-    if (!isRunning) {
-      startTimer();
-    }
+    if (!isRunning) startTimer();
     advancePhase();
   }
 
@@ -197,7 +226,6 @@ export function ClimbTimer({
       setIsHydrated(true);
       return;
     }
-
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
@@ -208,7 +236,7 @@ export function ClimbTimer({
         }
       }
     } catch {
-      // Ignore invalid local settings and keep defaults.
+      // keep defaults
     } finally {
       setIsHydrated(true);
     }
@@ -224,7 +252,6 @@ export function ClimbTimer({
       clearTimer();
       return;
     }
-
     intervalRef.current = setInterval(() => {
       setRemaining((current) => {
         if (current <= 1) {
@@ -234,9 +261,18 @@ export function ClimbTimer({
         return current - 1;
       });
     }, 1000);
-
     return clearTimer;
   }, [isRunning, config, roundIndex]);
+
+  // Lock body scroll when fullscreen
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isFullscreen]);
 
   useEffect(() => () => {
     clearTimer();
@@ -247,6 +283,119 @@ export function ClimbTimer({
   const seconds = remaining % 60;
   const display = `${minutes}:${String(seconds).padStart(2, "0")}`;
 
+  // ── Fullscreen overlay ────────────────────────────────────────────────────────
+
+  if (isFullscreen) {
+    const bg = isFinished ? "#1C1C1E" : TONE_BG[activePhase.tone];
+    const accent = TONE_ACCENT[activePhase.tone];
+    const nextPhase = config.phases[phaseIndex + 1];
+
+    return (
+      <div
+        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center select-none"
+        style={{
+          backgroundColor: bg,
+          transition: "background-color 0.4s ease",
+        }}
+      >
+        {/* Flash overlay on phase change */}
+        <div
+          className="pointer-events-none absolute inset-0 transition-opacity duration-150"
+          style={{ backgroundColor: "white", opacity: flash ? 0.15 : 0 }}
+        />
+
+        {/* Exit button */}
+        <button
+          type="button"
+          onClick={() => setIsFullscreen(false)}
+          className="absolute top-5 right-5 flex h-10 w-10 items-center justify-center rounded-full"
+          style={{ backgroundColor: accent }}
+        >
+          <X className="h-5 w-5 text-white" />
+        </button>
+
+        {/* Round badge */}
+        <div
+          className="absolute top-5 left-5 rounded-full px-4 py-1.5 text-xs font-semibold text-white/80"
+          style={{ backgroundColor: accent }}
+        >
+          Round {Math.min(roundIndex + 1, config.rounds)} / {config.rounds}
+        </div>
+
+        {/* Progress bar */}
+        <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: "rgba(255,255,255,0.12)" }}>
+          <div
+            className="h-full transition-all duration-300"
+            style={{ width: `${progressPercent}%`, backgroundColor: "rgba(255,255,255,0.55)" }}
+          />
+        </div>
+
+        {/* Main content */}
+        <div className="flex flex-col items-center gap-6 px-8 text-center">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">
+            {isFinished ? "Done" : activePhase.label}
+          </p>
+
+          <p
+            className="tabular-nums font-black text-white leading-none"
+            style={{ fontSize: "clamp(5rem, 22vw, 13rem)" }}
+          >
+            {display}
+          </p>
+
+          {!isFinished && (
+            <p className="text-sm text-white/45">
+              {nextPhase ? `${nextPhase.label} next` : "Last phase this round"}
+            </p>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="absolute bottom-12 flex items-center gap-5">
+          <button
+            type="button"
+            onClick={() => resetTimer()}
+            className="rounded-full px-5 py-3 text-sm font-semibold text-white/60"
+            style={{ backgroundColor: accent }}
+          >
+            Reset
+          </button>
+
+          {isRunning ? (
+            <button
+              type="button"
+              onClick={pauseTimer}
+              className="rounded-full px-8 py-4 text-base font-bold text-white"
+              style={{ backgroundColor: accent, fontSize: "1rem" }}
+            >
+              Pause
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startTimer}
+              className="rounded-full px-8 py-4 text-base font-bold text-white"
+              style={{ backgroundColor: "rgba(255,255,255,0.28)" }}
+            >
+              {isFinished ? "Restart" : "Start"}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={skipPhase}
+            className="rounded-full px-5 py-3 text-sm font-semibold text-white/60"
+            style={{ backgroundColor: accent }}
+          >
+            Skip
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal (card) view ────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-4 rounded-[22px] border border-ink/10 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-4">
@@ -254,8 +403,18 @@ export function ClimbTimer({
           <p className="text-sm font-semibold text-ink">{title}</p>
           <p className="mt-1 text-sm leading-6 text-ink/62">{description}</p>
         </div>
-        <div className="rounded-full border border-ink/10 bg-mist/40 px-3 py-1 text-xs font-semibold text-ink/55">
-          Round {Math.min(roundIndex + 1, config.rounds)} / {config.rounds}
+        <div className="flex items-center gap-2">
+          <div className="rounded-full border border-ink/10 bg-mist/40 px-3 py-1 text-xs font-semibold text-ink/55">
+            Round {Math.min(roundIndex + 1, config.rounds)} / {config.rounds}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(true)}
+            title="Fullscreen timer"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/10 bg-mist/40 text-ink/55 transition hover:border-pine/40 hover:text-pine"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -371,6 +530,13 @@ export function ClimbTimer({
           className="rounded-full border border-clay/18 bg-clay/8 px-5 py-2.5 text-sm font-semibold text-clay transition hover:border-clay/35"
         >
           Skip section
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsFullscreen(true)}
+          className="ml-auto rounded-full border border-ink/10 px-5 py-2.5 text-sm font-semibold text-ink/55 transition hover:border-pine hover:text-pine"
+        >
+          Fullscreen ↗
         </button>
       </div>
     </div>
